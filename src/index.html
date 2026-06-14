@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown Editor</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="lib/codemirror/codemirror.css">
+  <link rel="stylesheet" href="lib/codemirror/theme/material-darker.css">
+  <link rel="stylesheet" href="lib/codemirror/addon/dialog/dialog.css">
+</head>
+<body>
+  <div id="app">
+    <header class="toolbar">
+      <div class="toolbar-left">
+        <button id="btn-new" class="toolbar-btn" title="新建 (Ctrl+N)">新建</button>
+        <button id="btn-open" class="toolbar-btn" title="打开 (Ctrl+O)">打开</button>
+        <button id="btn-save" class="toolbar-btn" title="保存 (Ctrl+S)">保存</button>
+        <div class="toolbar-separator"></div>
+        <button id="btn-export-html" class="toolbar-btn" title="导出 HTML">HTML</button>
+        <button id="btn-export-md" class="toolbar-btn" title="导出 Markdown">MD</button>
+        <button id="btn-export-pdf" class="toolbar-btn" title="导出 PDF">PDF</button>
+        <div class="toolbar-separator"></div>
+        <button id="btn-view-mode" class="toolbar-btn toolbar-btn-active" title="切换预览/编辑模式">
+          <span id="view-mode-icon">&#128065;</span>
+          <span id="view-mode-label">预览</span>
+        </button>
+      </div>
+      <div class="toolbar-center">
+        <div id="tab-bar" class="tab-bar">
+          <div class="tab active" data-index="0">
+            <span class="tab-name">未命名</span>
+            <span class="tab-close">&times;</span>
+          </div>
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <button id="btn-find" class="toolbar-btn" title="查找替换 (Ctrl+F)">查找</button>
+        <button id="btn-theme" class="toolbar-btn" title="切换主题">主题</button>
+      </div>
+    </header>
+
+    <div id="find-panel" class="find-panel hidden">
+      <div class="find-row">
+        <input type="text" id="find-input" placeholder="查找..." class="find-input">
+        <label class="find-option"><input type="checkbox" id="find-case"> 区分大小写</label>
+        <label class="find-option"><input type="checkbox" id="find-regex"> 正则</label>
+        <button id="find-prev" class="find-btn">上一个</button>
+        <button id="find-next" class="find-btn">下一个</button>
+        <span id="find-count" class="find-count"></span>
+        <div class="find-separator"></div>
+        <input type="text" id="replace-input" placeholder="替换..." class="find-input">
+        <button id="replace-one" class="find-btn">替换</button>
+        <button id="replace-all" class="find-btn">全部替换</button>
+        <button id="find-close" class="find-btn find-close-btn">&times;</button>
+      </div>
+    </div>
+
+    <main class="editor-container">
+      <div class="editor-pane" id="editor-pane">
+        <div class="pane-header">
+          <span>编辑</span>
+          <button class="pane-collapse-btn" id="btn-collapse-editor" title="折叠编辑器">&#9664;</button>
+        </div>
+        <div id="editor-wrapper"></div>
+      </div>
+      <div class="resizer" id="resizer"></div>
+      <div class="preview-pane" id="preview-pane">
+        <div class="pane-header">
+          <span>预览</span>
+          <button class="pane-collapse-btn" id="btn-collapse-preview" title="折叠预览">&#9654;</button>
+        </div>
+        <div id="preview" class="preview-content"></div>
+      </div>
+    </main>
+
+    <footer class="statusbar">
+      <span id="status-text">就绪</span>
+      <span id="cursor-position">行 1, 列 1</span>
+    </footer>
+  </div>
+
+  <script src="lib/codemirror/codemirror.js"></script>
+  <script src="lib/codemirror/mode/markdown/markdown.js"></script>
+  <script src="lib/codemirror/mode/gfm/gfm.js"></script>
+  <script src="lib/codemirror/mode/javascript/javascript.js"></script>
+  <script src="lib/codemirror/mode/python/python.js"></script>
+  <script src="lib/codemirror/mode/rust/rust.js"></script>
+  <script src="lib/codemirror/mode/htmlmixed/htmlmixed.js"></script>
+  <script src="lib/codemirror/mode/xml/xml.js"></script>
+  <script src="lib/codemirror/mode/css/css.js"></script>
+  <script src="lib/codemirror/mode/yaml/yaml.js"></script>
+  <script src="lib/codemirror/mode/shell/shell.js"></script>
+  <script src="lib/codemirror/addon/mode/overlay.js"></script>
+  <script src="lib/codemirror/addon/edit/continuelist.js"></script>
+  <script src="lib/codemirror/addon/edit/closebrackets.js"></script>
+  <script src="lib/codemirror/addon/edit/matchbrackets.js"></script>
+  <script src="lib/codemirror/addon/search/search.js"></script>
+  <script src="lib/codemirror/addon/search/searchcursor.js"></script>
+  <script src="lib/codemirror/addon/search/jump-to-line.js"></script>
+  <script src="lib/codemirror/addon/dialog/dialog.js"></script>
+  <script src="lib/codemirror/addon/selection/active-line.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

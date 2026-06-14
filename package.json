@@ -1,0 +1,21 @@
+{
+  "name": "markdown-editor",
+  "version": "0.1.0",
+  "description": "A lightweight cross-platform Markdown editor",
+  "private": true,
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "codemirror": "^5.65.18",
+    "highlight.js": "^11.10.0",
+    "markdown-it": "^14.1.0",
+    "markdown-it-highlightjs": "^4.2.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2.1.0",
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}
