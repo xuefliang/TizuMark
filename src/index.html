@@ -11,33 +11,68 @@
 </head>
 <body>
   <div id="app">
-    <header class="toolbar">
-      <div class="toolbar-left">
-        <button id="btn-new" class="toolbar-btn" title="新建 (Ctrl+N)">新建</button>
-        <button id="btn-open" class="toolbar-btn" title="打开 (Ctrl+O)">打开</button>
-        <button id="btn-save" class="toolbar-btn" title="保存 (Ctrl+S)">保存</button>
-        <div class="toolbar-separator"></div>
-        <button id="btn-export-html" class="toolbar-btn" title="导出 HTML">HTML</button>
-        <button id="btn-export-md" class="toolbar-btn" title="导出 Markdown">MD</button>
-        <button id="btn-export-pdf" class="toolbar-btn" title="导出 PDF">PDF</button>
-        <div class="toolbar-separator"></div>
-        <button id="btn-view-mode" class="toolbar-btn toolbar-btn-active" title="切换预览/编辑模式">
-          <span id="view-mode-icon">&#128065;</span>
-          <span id="view-mode-label">预览</span>
-        </button>
+    <header class="header">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button id="btn-new" class="toolbar-btn" title="新建 (Ctrl+N)">
+            <span>&#128196;</span>
+            <span>新建</span>
+          </button>
+          <button id="btn-open" class="toolbar-btn" title="打开 (Ctrl+O)">
+            <span>&#128194;</span>
+            <span>打开</span>
+          </button>
+          <button id="btn-save" class="toolbar-btn" title="保存 (Ctrl+S)">
+            <span>&#128190;</span>
+            <span>保存</span>
+          </button>
+          <div class="toolbar-separator"></div>
+          <div class="dropdown">
+            <button id="btn-export" class="toolbar-btn" title="导出文件">
+              <span>&#128229;</span>
+              <span>导出</span>
+              <span class="dropdown-arrow">&#9660;</span>
+            </button>
+            <div class="dropdown-menu hidden" id="export-menu">
+              <div class="dropdown-item" id="btn-export-html">HTML</div>
+              <div class="dropdown-item" id="btn-export-md">Markdown</div>
+              <div class="dropdown-item" id="btn-export-pdf">PDF</div>
+            </div>
+          </div>
+          <div class="toolbar-separator"></div>
+          <div class="view-mode-tabs">
+            <button id="btn-view-preview" class="view-mode-tab active" title="预览模式">
+              <span>&#128065;</span>
+              <span>预览</span>
+            </button>
+            <button id="btn-view-edit" class="view-mode-tab" title="编辑模式">
+              <span>&#9998;</span>
+              <span>编辑</span>
+            </button>
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <button id="btn-find" class="toolbar-btn" title="查找替换 (Ctrl+F)">
+            <span>&#128269;</span>
+            <span>查找</span>
+          </button>
+          <button id="btn-theme" class="toolbar-btn" title="切换主题">
+            <span>&#127769;</span>
+            <span>主题</span>
+          </button>
+          <button id="btn-about" class="toolbar-btn" title="关于">
+            <span>&#9432;</span>
+            <span>关于</span>
+          </button>
+        </div>
       </div>
-      <div class="toolbar-center">
+      <div class="tab-bar-wrapper">
         <div id="tab-bar" class="tab-bar">
           <div class="tab active" data-index="0">
             <span class="tab-name">未命名</span>
             <span class="tab-close">&times;</span>
           </div>
         </div>
-      </div>
-      <div class="toolbar-right">
-        <button id="btn-find" class="toolbar-btn" title="查找替换 (Ctrl+F)">查找</button>
-        <button id="btn-theme" class="toolbar-btn" title="切换主题">主题</button>
-        <button id="btn-about" class="toolbar-btn" title="关于">关于</button>
       </div>
     </header>
 
@@ -70,6 +105,12 @@
           <span>预览</span>
         </div>
         <div id="preview" class="preview-content"></div>
+        <button id="scroll-top-btn" class="scroll-top-btn hidden" title="回到顶部">
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 8L7 3L12 8"/>
+          </svg>
+          <span class="scroll-top-label">TOP</span>
+        </button>
       </div>
       <div class="side-btn" id="btn-side-left" title="折叠编辑器">&#9664;</div>
       <div class="side-btn" id="btn-side-right" title="折叠预览">&#9654;</div>
@@ -159,6 +200,22 @@
           </ul>
           <p class="copyright-text">上述组件的完整许可证文本可在各组件的官方仓库中找到。</p>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="save-dialog" class="dialog-overlay hidden">
+    <div class="dialog save-dialog">
+      <div class="dialog-header">
+        <h2 id="save-dialog-title">保存更改</h2>
+      </div>
+      <div class="dialog-content">
+        <p id="save-dialog-message">文件已修改，是否保存？</p>
+      </div>
+      <div class="dialog-footer">
+        <button id="save-dialog-save" class="dialog-btn dialog-btn-primary">保存</button>
+        <button id="save-dialog-discard" class="dialog-btn">不保存</button>
+        <button id="save-dialog-cancel" class="dialog-btn">取消</button>
       </div>
     </div>
   </div>

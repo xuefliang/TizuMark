@@ -12,10 +12,14 @@ class Tab {
   constructor(name = '未命名', content = '', filePath = null) {
     this.name = name;
     this.content = content;
+    this.savedContent = content;
     this.filePath = filePath;
-    this.isModified = false;
     this.cursorPos = { line: 0, ch: 0 };
     this.scrollPos = { top: 0, left: 0 };
+  }
+
+  get isModified() {
+    return this.content !== this.savedContent;
   }
 }
 
@@ -36,6 +40,7 @@ class MarkdownEditor {
     this.initEventListeners();
     this.initResizer();
     this.initFindReplace();
+    this.initScrollTopBtn();
     this.loadTheme();
     this.updatePreview();
     this.applyViewMode();
@@ -83,7 +88,6 @@ class MarkdownEditor {
 
     this.cm.on('change', () => {
       this.activeTab.content = this.cm.getValue();
-      this.activeTab.isModified = true;
       this.updateTabDisplay();
       this.debounceUpdatePreview();
     });
@@ -127,34 +131,50 @@ class MarkdownEditor {
     this.updateTabBar();
   }
 
-  closeTab(index) {
+  async closeTab(index) {
     if (this.tabs.length === 1) {
       this.newFile();
       return;
     }
 
+    if (index < 0 || index >= this.tabs.length) return;
+
     const tab = this.tabs[index];
     if (tab.isModified) {
-      if (!confirm(`${tab.name} 已修改，是否关闭？`)) return;
+      const result = await this.showSaveDialog('保存更改', `${tab.name} 已修改，是否保存？`);
+      if (result === 'cancel') return;
+      if (result === 'save') {
+        const savedIndex = this.tabs.indexOf(tab);
+        if (savedIndex === -1) return;
+        this.activeTabIndex = savedIndex;
+        this.cm.setValue(tab.content);
+        this.activeTab.savedContent = this.activeTab.content;
+        this.updateTabDisplay();
+      }
     }
 
-    this.tabs.splice(index, 1);
-    if (index < this.activeTabIndex) {
+    const removeIndex = this.tabs.indexOf(tab);
+    if (removeIndex === -1) return;
+
+    this.tabs.splice(removeIndex, 1);
+    if (removeIndex < this.activeTabIndex) {
       this.activeTabIndex--;
-    } else if (index === this.activeTabIndex) {
+    } else if (removeIndex >= this.activeTabIndex) {
       if (this.activeTabIndex >= this.tabs.length) {
         this.activeTabIndex = this.tabs.length - 1;
       }
+    }
+    this.updateTabBar();
+    if (this.tabs.length > 0) {
       this.cm.setValue(this.activeTab.content);
       this.cm.setCursor(this.activeTab.cursorPos);
       this.updatePreview();
     }
-    this.updateTabBar();
   }
 
   updateTabBar() {
     const tabBar = document.getElementById('tab-bar');
-    tabBar.innerHTML = '';
+    const fragment = document.createDocumentFragment();
 
     this.tabs.forEach((tab, i) => {
       const tabEl = document.createElement('div');
@@ -178,8 +198,10 @@ class MarkdownEditor {
       }
 
       tabEl.addEventListener('click', () => this.switchTab(i));
-      tabBar.appendChild(tabEl);
+      fragment.appendChild(tabEl);
     });
+
+    tabBar.replaceChildren(fragment);
   }
 
   updateTabDisplay() {
@@ -194,18 +216,26 @@ class MarkdownEditor {
     document.getElementById('btn-new').addEventListener('click', () => this.newFile());
     document.getElementById('btn-open').addEventListener('click', () => this.openFile());
     document.getElementById('btn-save').addEventListener('click', () => this.saveFile());
+    document.getElementById('btn-export').addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.getElementById('export-menu').classList.toggle('hidden');
+    });
     document.getElementById('btn-export-html').addEventListener('click', () => this.exportHTML());
     document.getElementById('btn-export-md').addEventListener('click', () => this.exportMarkdown());
     document.getElementById('btn-export-pdf').addEventListener('click', () => this.exportPDF());
+    document.addEventListener('click', () => {
+      document.getElementById('export-menu').classList.add('hidden');
+    });
     document.getElementById('btn-theme').addEventListener('click', () => this.toggleTheme());
     document.getElementById('btn-find').addEventListener('click', () => this.toggleFindPanel());
-    document.getElementById('btn-view-mode').addEventListener('click', () => this.toggleViewMode());
+    document.getElementById('btn-view-preview').addEventListener('click', () => this.setViewMode('preview'));
+    document.getElementById('btn-view-edit').addEventListener('click', () => this.setViewMode('edit'));
     document.getElementById('btn-side-left').addEventListener('click', () => this.toggleCollapse('editor'));
     document.getElementById('btn-side-right').addEventListener('click', () => this.toggleCollapse('preview'));
     document.getElementById('btn-about').addEventListener('click', () => this.showAbout());
     document.getElementById('about-close').addEventListener('click', () => this.hideAbout());
 
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', async (e) => {
       if (e.key === 'Escape') {
         // 如果关于对话框打开，关闭它
         const aboutDialog = document.getElementById('about-dialog');
@@ -231,7 +261,7 @@ class MarkdownEditor {
             break;
           case 'w':
             e.preventDefault();
-            this.closeTab(this.activeTabIndex);
+            await this.closeTab(this.activeTabIndex);
             break;
           case 'tab':
             e.preventDefault();
@@ -428,18 +458,60 @@ class MarkdownEditor {
     this.cm.focus();
   }
 
+  initScrollTopBtn() {
+    const scrollTopBtn = document.getElementById('scroll-top-btn');
+    this.preview.addEventListener('scroll', () => {
+      if (this.preview.scrollTop > 200) {
+        scrollTopBtn.classList.remove('hidden');
+      } else {
+        scrollTopBtn.classList.add('hidden');
+      }
+    });
+    scrollTopBtn.addEventListener('click', () => {
+      this.preview.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  showSaveDialog(title, message) {
+    return new Promise((resolve) => {
+      const dialog = document.getElementById('save-dialog');
+      document.getElementById('save-dialog-title').textContent = title;
+      document.getElementById('save-dialog-message').textContent = message;
+      dialog.classList.remove('hidden');
+
+      const onSave = async () => {
+        cleanup();
+        await this.saveFile();
+        resolve('save');
+      };
+      const onDiscard = () => {
+        cleanup();
+        resolve('discard');
+      };
+      const onCancel = () => {
+        cleanup();
+        resolve('cancel');
+      };
+      const cleanup = () => {
+        dialog.classList.add('hidden');
+        document.getElementById('save-dialog-save').removeEventListener('click', onSave);
+        document.getElementById('save-dialog-discard').removeEventListener('click', onDiscard);
+        document.getElementById('save-dialog-cancel').removeEventListener('click', onCancel);
+      };
+
+      document.getElementById('save-dialog-save').addEventListener('click', onSave);
+      document.getElementById('save-dialog-discard').addEventListener('click', onDiscard);
+      document.getElementById('save-dialog-cancel').addEventListener('click', onCancel);
+    });
+  }
+
   async newFile() {
     if (this.activeTab.isModified) {
-      if (!confirm('当前文件未保存，是否继续？')) return;
+      const result = await this.showSaveDialog('保存更改', `${this.activeTab.name} 已修改，是否保存？`);
+      if (result === 'cancel') return;
     }
-    this.activeTab.name = '未命名';
-    this.activeTab.content = '';
-    this.activeTab.filePath = null;
-    this.activeTab.isModified = false;
-    this.activeTab.cursorPos = { line: 0, ch: 0 };
-    this.cm.setValue('');
-    this.updateTabDisplay();
-    this.updatePreview();
+    this.setViewMode('edit');
+    this.addTab('未命名', '', null);
     this.setStatus('新文件已创建');
   }
 
@@ -455,15 +527,22 @@ class MarkdownEditor {
 
       if (!selected) return;
       const files = Array.isArray(selected) ? selected : [selected];
+      let openedCount = 0;
 
       for (const filePath of files) {
+        const existingIndex = this.tabs.findIndex(t => t.filePath === filePath);
+        if (existingIndex !== -1) {
+          this.switchTab(existingIndex);
+          continue;
+        }
         const content = await invoke('read_file', { path: filePath });
         const name = filePath.split(/[/\\]/).pop();
         this.addTab(name, content, filePath);
+        openedCount++;
       }
       this.viewMode = 'preview';
       this.applyViewMode();
-      this.setStatus(`已打开 ${files.length} 个文件`);
+      this.setStatus(openedCount > 0 ? `已打开 ${openedCount} 个文件` : '文件已在打开中');
     } catch (error) {
       this.setStatus(`打开失败: ${error}`);
     }
@@ -484,7 +563,7 @@ class MarkdownEditor {
       }
 
       await invoke('write_file', { path: this.activeTab.filePath, content: this.activeTab.content });
-      this.activeTab.isModified = false;
+      this.activeTab.savedContent = this.activeTab.content;
       this.updateTabDisplay();
       this.setStatus(`已保存: ${this.activeTab.filePath}`);
     } catch (error) {
@@ -627,32 +706,29 @@ ${htmlContent}
     document.documentElement.setAttribute('data-theme', 'light');
   }
 
-  toggleViewMode() {
-    this.viewMode = this.viewMode === 'preview' ? 'edit' : 'preview';
+  setViewMode(mode) {
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
     this.applyViewMode();
   }
 
   applyViewMode() {
     const container = document.querySelector('.editor-container');
-    const icon = document.getElementById('view-mode-icon');
-    const label = document.getElementById('view-mode-label');
-    const btn = document.getElementById('btn-view-mode');
+    const btnPreview = document.getElementById('btn-view-preview');
+    const btnEdit = document.getElementById('btn-view-edit');
     const sideLeft = document.getElementById('btn-side-left');
     const sideRight = document.getElementById('btn-side-right');
 
     container.classList.remove('preview-mode', 'editor-collapsed', 'preview-collapsed');
 
+    btnPreview.classList.toggle('active', this.viewMode === 'preview');
+    btnEdit.classList.toggle('active', this.viewMode === 'edit');
+
     if (this.viewMode === 'preview') {
       container.classList.add('preview-mode');
-      icon.innerHTML = '&#128065;';
-      label.textContent = '预览';
-      btn.title = '切换到编辑模式';
       sideLeft.classList.add('side-hidden');
       sideRight.classList.add('side-hidden');
     } else {
-      icon.innerHTML = '&#9998;';
-      label.textContent = '编辑';
-      btn.title = '切换到预览模式';
       sideLeft.classList.remove('side-hidden', 'side-active');
       sideLeft.innerHTML = '&#9664;';
       sideLeft.title = '折叠编辑器';
