@@ -40,6 +40,8 @@ body {
   color: var(--text-primary);
   height: 100vh;
   overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 #app { display: flex; flex-direction: column; height: 100vh; }
@@ -354,6 +356,8 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   width: 180px;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .find-input:focus { outline: none; border-color: var(--accent-color); }
@@ -492,6 +496,8 @@ body.is-resizing .preview-pane {
   line-height: 1.7;
   word-wrap: break-word;
   scroll-behavior: smooth;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .scroll-top-btn {
