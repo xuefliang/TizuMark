@@ -269,9 +269,32 @@ body {
   gap: 2px;
   overflow-x: auto;
   width: 100%;
+  align-items: center;
 }
 
 .tab-bar::-webkit-scrollbar { display: none; }
+
+.tab-add {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background-color 0.15s, color 0.15s;
+  -webkit-app-region: no-drag;
+}
+
+.tab-add:hover {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
 
 .tab {
   display: flex;

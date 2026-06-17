@@ -202,6 +202,8 @@ class MarkdownEditor {
 
   updateTabBar() {
     const tabBar = document.getElementById('tab-bar');
+    const addBtn = document.getElementById('btn-add-tab');
+
     const fragment = document.createDocumentFragment();
 
     this.tabs.forEach((tab, i) => {
@@ -230,6 +232,7 @@ class MarkdownEditor {
     });
 
     tabBar.replaceChildren(fragment);
+    if (addBtn) tabBar.appendChild(addBtn);
   }
 
   updateTabDisplay() {
@@ -287,6 +290,12 @@ class MarkdownEditor {
     document.getElementById('btn-about').addEventListener('click', () => {
       document.getElementById('more-menu').classList.add('hidden');
       this.showAbout();
+    });
+    document.getElementById('btn-add-tab').addEventListener('click', () => this.newFile());
+    document.getElementById('tab-bar').addEventListener('dblclick', (e) => {
+      if (e.target === document.getElementById('tab-bar') || e.target.classList.contains('tab-bar')) {
+        this.newFile();
+      }
     });
     document.getElementById('btn-view-preview').addEventListener('click', () => this.setViewMode('preview'));
     document.getElementById('btn-view-edit').addEventListener('click', () => this.setViewMode('edit'));
