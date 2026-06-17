@@ -311,8 +311,12 @@ fn preprocess_markdown(content: String) -> String {
             continue;
         }
 
-        let processed = process_inline_markdown(line);
-        result.push_str(&processed);
+        if line.contains("<a ") || line.contains("<img ") || line.contains("<iframe ") || line.contains("<figure") || line.contains("<video") || line.contains("<audio") {
+            result.push_str(line);
+        } else {
+            let processed = process_inline_markdown(line);
+            result.push_str(&processed);
+        }
         result.push('\n');
         i += 1;
     }
