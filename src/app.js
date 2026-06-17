@@ -61,7 +61,7 @@ class MarkdownEditor {
       previewFontSize: 16,
       lineHeight: 1.7,
       maxWidth: 0,
-      themeMode: 'system',
+      themeMode: 'light',
       defaultView: 'preview',
       scrollSync: true,
     };
@@ -215,7 +215,7 @@ class MarkdownEditor {
       previewFontSize: 16,
       lineHeight: 1.7,
       maxWidth: 0,
-      themeMode: 'system',
+      themeMode: 'light',
       defaultView: 'preview',
       scrollSync: true,
     };
@@ -1514,11 +1514,14 @@ ${htmlContent}
   }
 
   toggleTheme() {
-    if (this.settings.themeMode !== 'system') {
-      this.settings.themeMode = 'system';
-      document.getElementById('set-theme-mode').value = 'system';
+    if (this.settings.themeMode !== 'light' && this.settings.themeMode !== 'dark') {
+      this.settings.themeMode = this.isDark ? 'light' : 'dark';
+      document.getElementById('set-theme-mode').value = this.settings.themeMode;
     }
     this.isDark = !this.isDark;
+    this.settings.themeMode = this.isDark ? 'dark' : 'light';
+    document.getElementById('set-theme-mode').value = this.settings.themeMode;
+    this.saveSettings();
     document.documentElement.setAttribute('data-theme', this.isDark ? 'dark' : 'light');
     this.cm.setOption('theme', this.isDark ? 'material-darker' : 'default');
     this.updateThemeIcon();
