@@ -436,11 +436,11 @@ class MarkdownEditor {
     document.getElementById('btn-file').addEventListener('click', (e) => {
       e.stopPropagation();
       document.getElementById('file-menu').classList.toggle('hidden');
-      document.getElementById('more-menu').classList.add('hidden');
+      document.getElementById('help-menu').classList.add('hidden');
     });
-    document.getElementById('btn-more').addEventListener('click', (e) => {
+    document.getElementById('btn-help').addEventListener('click', (e) => {
       e.stopPropagation();
-      document.getElementById('more-menu').classList.toggle('hidden');
+      document.getElementById('help-menu').classList.toggle('hidden');
       document.getElementById('file-menu').classList.add('hidden');
     });
     document.addEventListener('click', () => {
@@ -475,11 +475,6 @@ class MarkdownEditor {
     document.getElementById('btn-about').addEventListener('click', () => {
       document.getElementById('help-menu').classList.add('hidden');
       this.showAbout();
-    });
-    document.getElementById('btn-help').addEventListener('click', (e) => {
-      e.stopPropagation();
-      document.getElementById('help-menu').classList.toggle('hidden');
-      document.getElementById('file-menu').classList.add('hidden');
     });
     document.getElementById('btn-add-tab').addEventListener('click', () => this.newFile());
     document.querySelector('.tab-bar-wrapper').addEventListener('dblclick', (e) => {
