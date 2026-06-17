@@ -79,10 +79,11 @@ class MarkdownEditor {
 
   initSettings() {
     document.getElementById('btn-settings').addEventListener('click', () => this.showSettings());
-    document.getElementById('settings-close').addEventListener('click', () => this.hideSettings());
+    document.getElementById('settings-close-btn').addEventListener('click', () => this.hideSettings());
     document.getElementById('settings-dialog').addEventListener('click', (e) => {
       if (e.target.id === 'settings-dialog') this.hideSettings();
     });
+    document.getElementById('settings-reset').addEventListener('click', () => this.resetSettings());
 
     const s = this.settings;
     document.getElementById('set-font-size').value = s.fontSize;
@@ -203,6 +204,37 @@ class MarkdownEditor {
 
   hideSettings() {
     document.getElementById('settings-dialog').classList.add('hidden');
+  }
+
+  resetSettings() {
+    const defaults = {
+      fontSize: 14,
+      tabSize: 2,
+      lineWrap: true,
+      lineNumbers: true,
+      previewFontSize: 16,
+      lineHeight: 1.7,
+      maxWidth: 0,
+      themeMode: 'system',
+      defaultView: 'preview',
+      scrollSync: true,
+    };
+    this.settings = defaults;
+    localStorage.removeItem('markflow-settings');
+
+    document.getElementById('set-font-size').value = defaults.fontSize;
+    document.getElementById('set-tab-size').value = defaults.tabSize;
+    document.getElementById('set-line-wrap').checked = defaults.lineWrap;
+    document.getElementById('set-line-numbers').checked = defaults.lineNumbers;
+    document.getElementById('set-preview-font-size').value = defaults.previewFontSize;
+    document.getElementById('set-line-height').value = defaults.lineHeight;
+    document.getElementById('set-max-width').value = defaults.maxWidth;
+    document.getElementById('set-theme-mode').value = defaults.themeMode;
+    document.getElementById('set-default-view').value = defaults.defaultView;
+    document.getElementById('set-scroll-sync').checked = defaults.scrollSync;
+
+    this.applySettings();
+    this.setStatus('已恢复默认设置');
   }
 
   get activeTab() {

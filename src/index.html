@@ -288,13 +288,12 @@
     <div class="dialog settings-dialog">
       <div class="dialog-header">
         <h2>设置</h2>
-        <button class="dialog-close" id="settings-close">&times;</button>
       </div>
       <div class="dialog-content settings-content">
         <div class="settings-section">
           <h3>编辑器</h3>
           <div class="settings-row">
-            <label>字体大小</label>
+            <label>字体大小 <span class="info-tip" title="编辑器代码区域的字体大小">?</span></label>
             <select id="set-font-size">
               <option value="12">12px</option>
               <option value="13">13px</option>
@@ -306,7 +305,7 @@
             </select>
           </div>
           <div class="settings-row">
-            <label>Tab 宽度</label>
+            <label>Tab 宽度 <span class="info-tip" title="按 Tab 键时插入的空格数量">?</span></label>
             <select id="set-tab-size">
               <option value="2" selected>2 空格</option>
               <option value="4">4 空格</option>
@@ -314,18 +313,18 @@
             </select>
           </div>
           <div class="settings-row">
-            <label>自动换行</label>
+            <label>自动换行 <span class="info-tip" title="超出编辑器宽度的文本自动换行显示">?</span></label>
             <label class="toggle"><input type="checkbox" id="set-line-wrap" checked><span class="toggle-slider"></span></label>
           </div>
           <div class="settings-row">
-            <label>显示行号</label>
+            <label>显示行号 <span class="info-tip" title="在编辑器左侧显示行号">?</span></label>
             <label class="toggle"><input type="checkbox" id="set-line-numbers" checked><span class="toggle-slider"></span></label>
           </div>
         </div>
         <div class="settings-section">
           <h3>预览</h3>
           <div class="settings-row">
-            <label>正文字号</label>
+            <label>正文字号 <span class="info-tip" title="右侧预览区域正文的文字大小">?</span></label>
             <select id="set-preview-font-size">
               <option value="14">14px</option>
               <option value="15">15px</option>
@@ -335,7 +334,7 @@
             </select>
           </div>
           <div class="settings-row">
-            <label>行高</label>
+            <label>行高 <span class="info-tip" title="预览区域文本行与行之间的间距">?</span></label>
             <select id="set-line-height">
               <option value="1.4">1.4</option>
               <option value="1.6">1.6</option>
@@ -345,7 +344,7 @@
             </select>
           </div>
           <div class="settings-row">
-            <label>最大宽度</label>
+            <label>最大宽度 <span class="info-tip" title="预览内容的最大宽度，居中显示，设为无限制则铺满">?</span></label>
             <select id="set-max-width">
               <option value="0" selected>无限制</option>
               <option value="800">800px</option>
@@ -357,7 +356,7 @@
         <div class="settings-section">
           <h3>行为</h3>
           <div class="settings-row">
-            <label>主题模式</label>
+            <label>主题模式 <span class="info-tip" title="切换界面配色，跟随系统会自动匹配系统深浅色">?</span></label>
             <select id="set-theme-mode">
               <option value="system" selected>跟随系统</option>
               <option value="light">浅色</option>
@@ -365,17 +364,21 @@
             </select>
           </div>
           <div class="settings-row">
-            <label>默认视图</label>
+            <label>默认视图 <span class="info-tip" title="打开文件时默认进入的视图模式">?</span></label>
             <select id="set-default-view">
               <option value="preview" selected>预览</option>
               <option value="edit">编辑</option>
             </select>
           </div>
           <div class="settings-row">
-            <label>滚动同步</label>
+            <label>滚动同步 <span class="info-tip" title="编辑器和预览区域的滚动位置相互跟随">?</span></label>
             <label class="toggle"><input type="checkbox" id="set-scroll-sync" checked><span class="toggle-slider"></span></label>
           </div>
         </div>
+      </div>
+      <div class="dialog-footer">
+        <button id="settings-reset" class="dialog-btn">恢复默认</button>
+        <button id="settings-close-btn" class="dialog-btn dialog-btn-primary">完成</button>
       </div>
     </div>
   </div>
