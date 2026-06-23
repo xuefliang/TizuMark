@@ -401,8 +401,15 @@ body {
   white-space: nowrap;
   min-width: 80px;
   max-width: 180px;
+  overflow: hidden;
   transition: all 0.2s ease;
   -webkit-app-region: no-drag;
+}
+
+.tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
 }
 
 .tab:hover { background-color: var(--bg-secondary); }
