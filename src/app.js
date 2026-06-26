@@ -1810,6 +1810,13 @@ ${htmlContent}
 
     let count = 0;
     textNodes.forEach(textNode => {
+      // Skip text nodes inside code/pre/inline-code etc.
+      const parent = textNode.parentElement;
+      if (parent) {
+        const tag = parent.tagName;
+        if (tag === 'CODE' || tag === 'PRE' || tag === 'SCRIPT' ||
+            tag === 'STYLE' || tag === 'TEXTAREA' || tag === 'NOSCRIPT') return;
+      }
       const text = textNode.textContent;
       const trimmed = text.trim();
       if (!trimmed.startsWith('$$')) return;

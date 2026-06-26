@@ -9,6 +9,10 @@ fn escape_html(s: &str) -> String {
      .replace('\'', "&#x27;")
 }
 
+fn count_backtick_prefix(s: &str) -> usize {
+    s.chars().take_while(|c| *c == '`').count()
+}
+
 fn sanitize_html(html: &str) -> String {
     let dangerous_tags = ["script", "style", "iframe", "object", "embed", "form", "textarea", "select", "button", "link", "meta", "base"];
     let mut result = String::with_capacity(html.len());
@@ -311,17 +315,30 @@ fn guard_math_blocks(content: &str) -> (String, Vec<String>) {
     let len = chars.len();
     let mut in_backtick = false;
     let mut in_code_block = false;
+    let mut code_fence_count = 0;
     let mut in_code_tag = false; // Track <code>...</code> tags from preprocess_markdown
 
     while i < len {
-        // Track triple backtick code blocks (```...```)
-        if i + 2 < len && chars[i] == '`' && chars[i + 1] == '`' && chars[i + 2] == '`' {
-            in_code_block = !in_code_block;
-            result.push(chars[i]);
-            result.push(chars[i + 1]);
-            result.push(chars[i + 2]);
-            i += 3;
-            continue;
+        // Track fenced code blocks (```...``` etc.)
+        if chars[i] == '`' {
+            let mut bt_count = 1;
+            while i + bt_count < len && chars[i + bt_count] == '`' {
+                bt_count += 1;
+            }
+            if bt_count >= 3 {
+                if !in_code_block {
+                    in_code_block = true;
+                    code_fence_count = bt_count;
+                    for j in 0..bt_count { result.push(chars[i + j]); }
+                    i += bt_count;
+                    continue;
+                } else if bt_count >= code_fence_count {
+                    in_code_block = false;
+                    for j in 0..bt_count { result.push(chars[i + j]); }
+                    i += bt_count;
+                    continue;
+                }
+            }
         }
 
         // Skip everything inside code blocks
@@ -408,17 +425,32 @@ fn preprocess_markdown(content: String) -> String {
     let lines: Vec<&str> = content.lines().collect();
     let len = lines.len();
     let mut in_code_block = false;
+    let mut code_fence_count = 0;
     let mut in_math_block = false;
     let mut line_types: Vec<LineType> = Vec::with_capacity(len);
 
     for idx in 0..len {
         let line = lines[idx];
         let trimmed = line.trim_start();
-        
-        if trimmed.starts_with("```") {
-            in_code_block = !in_code_block;
-            line_types.push(LineType::Code);
-            continue;
+
+        if !in_code_block {
+            let bt_count = count_backtick_prefix(trimmed);
+            if bt_count >= 3 {
+                in_code_block = true;
+                code_fence_count = bt_count;
+                line_types.push(LineType::Code);
+                continue;
+            }
+        } else if in_code_block {
+            let bt_count = count_backtick_prefix(trimmed);
+            if bt_count >= code_fence_count {
+                let after = &trimmed[bt_count..];
+                if after.trim().is_empty() {
+                    in_code_block = false;
+                    line_types.push(LineType::Code);
+                    continue;
+                }
+            }
         }
         if in_code_block {
             line_types.push(LineType::Code);
@@ -1050,6 +1082,18 @@ $$".to_string();
         assert!(html.contains("alert-note"), "Alert blockquote should be rendered in: {}", html);
     }
 
+
+    #[test]
+    fn test_render_four_backtick_fence() {
+        let input = "````markdown
+```javascript
+let x = 1;
+```
+````".to_string();
+        let html = render_markdown(input);
+        assert!(html.contains("let x = 1"), "Inner code must be present");
+        assert!(html.contains("```"), "Should render literal backticks");
+    }
     #[test]
     fn test_full_demo_md_file() {
         let content = std::fs::read_to_string("../demo.md")
