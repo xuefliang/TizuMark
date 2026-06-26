@@ -1,4 +1,5 @@
 use std::fs;
+use tauri::{Emitter, Manager};
 
 fn escape_html(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -9,7 +10,7 @@ fn escape_html(s: &str) -> String {
 }
 
 fn sanitize_html(html: &str) -> String {
-    let dangerous_tags = ["script", "style", "iframe", "object", "embed", "form", "input", "textarea", "select", "button", "link", "meta", "base"];
+    let dangerous_tags = ["script", "style", "iframe", "object", "embed", "form", "textarea", "select", "button", "link", "meta", "base"];
     let mut result = String::with_capacity(html.len());
     let chars: Vec<char> = html.chars().collect();
     let len = chars.len();
@@ -264,14 +265,20 @@ fn heading_to_id(text: &str) -> String {
     let mut id = String::new();
     for c in text.chars() {
         if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ' ' || c >= '\u{4e00}' && c <= '\u{9fa5}' {
-            if c == ' ' {
+            if c == ' ' || c == '-' || c == '_' {
                 id.push('-');
             } else {
                 id.push(c.to_ascii_lowercase());
             }
         }
     }
-    id.trim_matches('-').to_string()
+    let collapsed: String = id.chars().fold(String::new(), |mut acc, ch| {
+        if ch != '-' || acc.chars().last() != Some('-') {
+            acc.push(ch);
+        }
+        acc
+    });
+    collapsed.trim_matches('-').to_string()
 }
 
 #[tauri::command]
@@ -287,7 +294,7 @@ fn render_markdown(content: String) -> String {
     options.insert(Options::ENABLE_FOOTNOTES);
     options.insert(Options::ENABLE_TASKLISTS);
     options.insert(Options::ENABLE_HEADING_ATTRIBUTES);
-    options.insert(Options::ENABLE_SMART_PUNCTUATION);
+    // options.insert(Options::ENABLE_SMART_PUNCTUATION);
 
     let parser = Parser::new_ext(&guarded, options);
     let mut html_output = String::new();
@@ -301,12 +308,71 @@ fn guard_math_blocks(content: &str) -> (String, Vec<String>) {
     let mut result = String::with_capacity(content.len());
     let mut i = 0;
     let chars: Vec<char> = content.chars().collect();
+    let len = chars.len();
+    let mut in_backtick = false;
+    let mut in_code_block = false;
+    let mut in_code_tag = false; // Track <code>...</code> tags from preprocess_markdown
 
-    while i < chars.len() {
-        if i + 1 < chars.len() && chars[i] == '$' && chars[i + 1] == '$' {
+    while i < len {
+        // Track triple backtick code blocks (```...```)
+        if i + 2 < len && chars[i] == '`' && chars[i + 1] == '`' && chars[i + 2] == '`' {
+            in_code_block = !in_code_block;
+            result.push(chars[i]);
+            result.push(chars[i + 1]);
+            result.push(chars[i + 2]);
+            i += 3;
+            continue;
+        }
+
+        // Skip everything inside code blocks
+        if in_code_block {
+            result.push(chars[i]);
+            i += 1;
+            continue;
+        }
+
+        // Track <code> and </code> tags — preprocess_markdown converts `$$` to <code>$$</code>
+        // We must NOT treat $$ inside <code> tags as math delimiters
+        if !in_backtick {
+            // Check for <code> opening tag
+            if i + 5 < len && chars[i] == '<' && chars[i + 1] == 'c' && chars[i + 2] == 'o'
+                && chars[i + 3] == 'd' && chars[i + 4] == 'e' && chars[i + 5] == '>' {
+                in_code_tag = true;
+                // Copy the entire <code> tag
+                for j in 0..6 { result.push(chars[i + j]); }
+                i += 6;
+                continue;
+            }
+            // Check for </code> closing tag
+            if i + 6 < len && chars[i] == '<' && chars[i + 1] == '/'
+                && chars[i + 2] == 'c' && chars[i + 3] == 'o' && chars[i + 4] == 'd'
+                && chars[i + 5] == 'e' && chars[i + 6] == '>' {
+                in_code_tag = false;
+                for j in 0..7 { result.push(chars[i + j]); }
+                i += 7;
+                continue;
+            }
+        }
+
+        // Skip $$ matching inside <code> tags
+        if in_code_tag {
+            result.push(chars[i]);
+            i += 1;
+            continue;
+        }
+
+        // Track inline code backticks to avoid false $$ matching
+        if chars[i] == '`' {
+            in_backtick = !in_backtick;
+            result.push(chars[i]);
+            i += 1;
+            continue;
+        }
+
+        if !in_backtick && i + 1 < len && chars[i] == '$' && chars[i + 1] == '$' {
             let start = i;
             i += 2;
-            while i + 1 < chars.len() {
+            while i + 1 < len {
                 if chars[i] == '$' && chars[i + 1] == '$' {
                     i += 2;
                     let math_block: String = chars[start..i].iter().collect();
@@ -329,7 +395,11 @@ fn restore_math_blocks(html: &str, placeholders: &[String]) -> String {
     let mut result = html.to_string();
     for (idx, math) in placeholders.iter().enumerate() {
         let marker = format!("<!--MATHBLOCK_{}-->", idx);
-        result = result.replace(&marker, math);
+        // HTML-escape the math content so that LaTeX characters
+        // (especially & used as column separator in matrices / align)
+        // are not misinterpreted by the browser's HTML parser.
+        let escaped = escape_html(math);
+        result = result.replace(&marker, &escaped);
     }
     result
 }
@@ -421,7 +491,7 @@ fn preprocess_markdown(content: String) -> String {
                     result.push('\n');
                     i += 1;
                 }
-                result.push_str("</div></div>\n");
+                result.push_str("</div></div>\n\n");
             } else {
                 result.push_str(&process_inline_markdown(line));
                 result.push('\n');
@@ -491,19 +561,44 @@ fn process_inline_markdown(line: &str) -> String {
     let chars: Vec<char> = line.chars().collect();
     let len = chars.len();
     let mut i = 0;
-    let mut in_code = false;
 
     while i < len {
+        // `inline code` → <code>inline code</code>
+        // Supports 1-3 backtick delimiters per CommonMark (e.g. `` ` ``)
         if chars[i] == '`' {
-            in_code = !in_code;
-            result.push('`');
-            i += 1;
-            continue;
-        }
-
-        if in_code {
-            result.push(chars[i]);
-            i += 1;
+            // Count opening backticks
+            let mut open_count = 1;
+            while i + open_count < len && chars[i + open_count] == '`' {
+                open_count += 1;
+            }
+            let mut j = i + open_count;
+            // Scan for matching closing sequence
+            while j + open_count <= len {
+                if j < len && chars[j] == '`' {
+                    // Check if we have exactly open_count backticks
+                    let mut match_count = 1;
+                    while j + match_count < len && chars[j + match_count] == '`' {
+                        match_count += 1;
+                    }
+                    if match_count >= open_count {
+                        // Found matching closer
+                        let inner: String = chars[i + open_count..j].iter().collect();
+                        result.push_str(&format!("<code>{}</code>", escape_html(&inner)));
+                        i = j + open_count;
+                        break;
+                    }
+                    j += match_count;
+                } else {
+                    j += 1;
+                }
+            }
+            if j + open_count > len {
+                // No matching closer found, emit literal backticks
+                for _ in 0..open_count {
+                    result.push('`');
+                }
+                i += open_count;
+            }
             continue;
         }
 
@@ -560,6 +655,27 @@ fn process_inline_markdown(line: &str) -> String {
                 result.push_str(&format!("<mark>{}</mark>", escape_html(&inner)));
                 i = j + 2;
                 continue;
+            }
+        }
+
+        // [text](url) links (skip ![ for images)
+        if chars[i] == '[' && (i == 0 || chars[i - 1] != '!') {
+            let mut text_end = i + 1;
+            while text_end < len && chars[text_end] != ']' {
+                text_end += 1;
+            }
+            if text_end + 1 < len && chars[text_end] == ']' && chars[text_end + 1] == '(' {
+                let mut url_end = text_end + 2;
+                while url_end < len && chars[url_end] != ')' {
+                    url_end += 1;
+                }
+                if url_end < len && chars[url_end] == ')' {
+                    let link_text: String = chars[i + 1..text_end].iter().collect();
+                    let url: String = chars[text_end + 2..url_end].iter().collect();
+                    result.push_str(&format!("<a href=\"{}\">{}</a>", escape_html(&url), escape_html(&link_text)));
+                    i = url_end + 1;
+                    continue;
+                }
             }
         }
 
@@ -631,9 +747,10 @@ fn process_inline_markdown(line: &str) -> String {
         }
 
         // Default: HTML-escape to prevent XSS
+        // Note: '>' is NOT escaped because it is valid Markdown syntax (blockquote, nested blockquote).
+        // pulldown-cmark will properly escape it in text content during HTML generation.
         match chars[i] {
             '<' => result.push_str("&lt;"),
-            '>' => result.push_str("&gt;"),
             '&' => result.push_str("&amp;"),
             '"' => result.push_str("&quot;"),
             '\'' => result.push_str("&#x27;"),
@@ -667,6 +784,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            if let Some(_window) = app.get_webview_window("main") {
+                let _ = app.emit("file-open", argv);
+            }
+        }))
         .invoke_handler(tauri::generate_handler![
             get_cli_args,
             read_file,
@@ -769,8 +891,9 @@ mod tests {
     fn test_preprocess_alert_xss() {
         let input = "> [!NOTE]\n> <script>alert(1)</script>".to_string();
         let result = preprocess_markdown(input);
-        assert!(!result.contains("<script>"));
-        assert!(result.contains("&lt;script&gt;"));
+        assert!(!result.contains("<script>"), "Raw script tag should not appear in: {}", result);
+        // After > escaping fix: < is escaped to &lt;, but > is preserved for markdown syntax
+        assert!(result.contains("&lt;script"), "Script tag should be escaped in: {}", result);
     }
 
     #[test]
@@ -821,7 +944,7 @@ mod tests {
         let html = render_markdown(input);
         assert!(html.contains("\\begin{bmatrix}"));
         assert!(html.contains("\\end{bmatrix}"));
-        assert!(html.contains("$$"));
+        assert!(html.contains("$$"), "Display math $$ delimiters should be preserved for frontend KaTeX");
     }
 
     #[test]
@@ -830,4 +953,234 @@ mod tests {
         let html = render_markdown(input);
         assert!(html.contains("$E = mc^2$"));
     }
+
+    #[test]
+    fn test_render_markdown_blockquote() {
+        let input = "> 智能标点自动转换".to_string();
+        let html = render_markdown(input);
+        assert!(html.contains("<blockquote"), "Blockquote should be present in: {}", html);
+        assert!(html.contains("智能标点自动转换"));
+    }
+
+    #[test]
+    fn test_render_markdown_nested_blockquote() {
+        let input = "> 第一层\n> > 第二层".to_string();
+        let html = render_markdown(input);
+        assert!(html.contains("<blockquote"), "Blockquote should be present in: {}", html);
+    }
+
+    #[test]
+    fn test_render_markdown_task_list() {
+        let input = "- [x] 完成项目文档\n- [ ] 发布版本".to_string();
+        let html = render_markdown(input);
+        assert!(html.contains("checkbox"), "Task list checkbox should be present in: {}", html);
+        assert!(html.contains("完成项目文档"));
+        assert!(html.contains("发布版本"));
+    }
+
+    #[test]
+    fn test_render_markdown_horizontal_rule() {
+        let input = "text before\n\n---\n\ntext after".to_string();
+        let html = render_markdown(input);
+        assert!(html.contains("<hr"), "Horizontal rule should be present in: {}", html);
+    }
+
+    #[test]
+    fn test_render_markdown_heading_with_math_section() {
+        let input = "### 行内公式\n\n勾股定理：$a^2 + b^2 = c^2$".to_string();
+        let html = render_markdown(input);
+        assert!(html.contains("行内公式"), "Heading text should be present in: {}", html);
+        assert!(!html.contains("###"), "Raw ### should not be present in: {}", html);
+    }
+
+    #[test]
+    fn test_render_markdown_heading_after_alert() {
+        let input = "> [!NOTE]\n> 提示内容\n\n### 独立公式块\n\n内容".to_string();
+        let html = render_markdown(input);
+        assert!(html.contains("独立公式块"), "Heading after alert should be present in: {}", html);
+        assert!(!html.contains("###"), "Raw ### should not be present in: {}", html);
+    }
+
+    #[test]
+    fn test_render_markdown_smart_punctuation_hr() {
+        // ENABLE_SMART_PUNCTUATION should not break thematic breaks
+        let input = "text\n\n---\n\nmore text".to_string();
+        let html = render_markdown(input);
+        assert!(html.contains("<hr"), "Horizontal rule should be present with smart punctuation in: {}", html);
+    }
+
+    #[test]
+    fn test_guard_math_blocks_respects_inline_code() {
+        // $$ inside inline code should NOT be treated as math block delimiters
+        let input = "> [!NOTE]\n> 如 `$$` 符号\n\n### 行内公式\n\n$$
+真实公式
+$$".to_string();
+        let html = render_markdown(input);
+        assert!(html.contains("行内公式"), "Heading should be preserved in: {}", html);
+        assert!(!html.contains("###"), "Raw ### should not be present in: {}", html);
+        assert!(html.contains("真实公式"), "Real math should be preserved in: {}", html);
+    }
+
+    #[test]
+    fn test_render_demo_math_section() {
+        let input = concat!(
+            "> [!NOTE]\n",
+            "> 以下数学公式在 Gitee / GitHub 等网页端可能显示为源码（如 `$$` 和 LaTeX 代码），这是平台不支持 KaTeX 渲染所致。\n",
+            "\n",
+            "### 行内公式\n",
+            "\n",
+            "勾股定理：$a^2 + b^2 = c^2$\n",
+            "\n",
+            "### 独立公式块\n",
+            "\n",
+            "麦克斯韦方程组：\n",
+            "\n",
+            "$$\n",
+            "\\begin{aligned}\n",
+            "\\nabla \\cdot \\mathbf{E} &= \\frac{\\rho}{\\varepsilon_0} \\\\\n",
+            "\\end{aligned}\n",
+            "$$\n",
+        ).to_string();
+        let html = render_markdown(input);
+        assert!(html.contains("行内公式"), "Heading '行内公式' should be present in: {}", html);
+        assert!(html.contains("独立公式块"), "Heading '独立公式块' should be present in: {}", html);
+        assert!(!html.contains("### 行内公式"), "Raw markdown heading should not appear in: {}", html);
+        assert!(html.contains("勾股定理"), "Content before math should be present in: {}", html);
+        assert!(html.contains("麦克斯韦方程组"), "Content after heading should be present in: {}", html);
+        assert!(html.contains("alert-note"), "Alert blockquote should be rendered in: {}", html);
+    }
+
+    #[test]
+    fn test_full_demo_md_file() {
+        let content = std::fs::read_to_string("../demo.md")
+            .expect("Could not read demo.md");
+        let html = render_markdown(content);
+
+        // Find and print context around "### 行内公式"
+        if let Some(pos) = html.find("### 行内公式") {
+            let start = pos.saturating_sub(500);
+            let end = std::cmp::min(pos + 500, html.len());
+            // Make sure we're at char boundaries
+            let start = html[..start].char_indices().last().map(|(i, _)| i).unwrap_or(0);
+            let end = html[..end].char_indices().last().map(|(i, _)| i).unwrap_or(html.len());
+            eprintln!("\n========== Context around ### 行内公式 ==========");
+            eprintln!("{}", &html[start..end]);
+            eprintln!("==========================================================");
+        }
+
+        assert!(!html.contains("### 行内公式"), "Raw ### 行内公式 should NOT appear in output");
+    }
+    #[test]
+    fn test_full_demo_math_section_output() {
+        // Exact content from demo.md lines 293-335
+        let input = r##"## 数学公式
+
+TizuMark 内置 KaTeX 渲染引擎，支持行内公式和独立公式。这是 TizuMark 区别于普通 Markdown 编辑器的重要特性。
+
+> [!NOTE]
+> 以下数学公式在 Gitee / GitHub 等网页端可能显示为源码（如 `$$` 和 LaTeX 代码），这是平台不支持 KaTeX 渲染所致。**在 TizuMark 软件中可完美渲染。** 打开 [demo.md](https://gitee.com/tizu/tizu-mark/blob/master/demo.md) 查看效果。
+
+### 行内公式
+
+勾股定理：$a^2 + b^2 = c^2$
+欧拉恒等式：$e^{i\pi} + 1 = 0$
+二次方程：$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$
+
+### 独立公式块
+
+麦克斯韦方程组：
+
+$$
+\begin{aligned}
+\nabla \cdot \mathbf{E} &= \frac{\rho}{\varepsilon_0} \\
+\nabla \cdot \mathbf{B} &= 0 \\
+\nabla \times \mathbf{E} &= -\frac{\partial \mathbf{B}}{\partial t} \\
+\nabla \times \mathbf{B} &= \mu_0 \mathbf{J} + \mu_0 \varepsilon_0 \frac{\partial \mathbf{E}}{\partial t}
+\end{aligned}
+$$
+
+### 常用数学
+
+线性回归的损失函数（MSE）：
+
+$$
+J(\theta) = \frac{1}{2m} \sum_{i=1}^{m} (h_\theta(x^{(i)}) - y^{(i)})^2
+$$
+
+贝叶斯定理：
+
+$$
+P(A|B) = \frac{P(B|A) \cdot P(A)}{P(B)}
+$$
+"##.to_string();
+
+        let html = render_markdown(input);
+        eprintln!("\n========== FULL MATH SECTION OUTPUT ==========\n{}\n================================================\n", html);
+
+        // Verify structure
+        assert!(html.contains("<h2>数学公式</h2>"), "h2 should be rendered");
+        assert!(html.contains("<h3>行内公式</h3>"), "h3 行内公式 should be rendered");
+        assert!(html.contains("<h3>独立公式块</h3>"), "h3 独立公式块 should be rendered");
+        assert!(html.contains("<h3>常用数学</h3>"), "h3 常用数学 should be rendered");
+        assert!(!html.contains("### "), "No raw ### should remain");
+    }
+
+    #[test]
+    fn test_render_demo_task_list() {
+        let input = concat!(
+            "### 任务列表\n",
+            "\n",
+            "本周待办事项：\n",
+            "\n",
+            "- [x] 完成项目文档\n",
+            "- [x] Review 代码\n",
+            "- [ ] 发布 v0.2.0 版本\n",
+        ).to_string();
+        let html = render_markdown(input);
+        assert!(html.contains("checkbox"), "Task list should have checkboxes in: {}", html);
+        assert!(html.contains("完成项目文档"));
+    }
+
+    #[test]
+    fn test_render_blockquote_and_hr() {
+        let input = "> 单一引用：TizuMark 的设计哲学是\"简单就是力量\"。\n\n---\n\n## 流程图与图表\n\nTizuMark 内置 Mermaid 图表引擎。".to_string();
+        let html = render_markdown(input);
+        assert!(html.contains("<blockquote"), "Blockquote should be present in: {}", html);
+        assert!(html.contains("<hr"), "Horizontal rule should be present in: {}", html);
+        assert!(html.contains("流程图与图表"), "Heading should be present in: {}", html);
+        assert!(html.contains("Mermaid"), "Content should be present in: {}", html);
+    }
 }
+
+    #[test]
+    fn test_matrix_math_block() {
+        // Test with proper \\ (double backslash) matching actual demo.md content
+        let input = "矩阵乘法：\n\n\
+$$\n\
+\\begin{bmatrix}\n\
+a_{11} & a_{12} \\\\\n\
+a_{21} & a_{22}\n\
+\\end{bmatrix}\n\
+\\times\n\
+\\begin{bmatrix}\n\
+b_{11} & b_{12} \\\\\n\
+b_{21} & b_{22}\n\
+\\end{bmatrix}\n\
+=\n\
+\\begin{bmatrix}\n\
+a_{11}b_{11} + a_{12}b_{21} & a_{11}b_{12} + a_{12}b_{22} \\\\\n\
+a_{21}b_{11} + a_{22}b_{21} & a_{21}b_{12} + a_{22}b_{22}\n\
+\\end{bmatrix}\n\
+$$\n\
+\n\
+---\n\
+".to_string();
+        let html = render_markdown(input);
+        eprintln!("\n========== MATRIX BLOCK OUTPUT (with \\\\) ==========\n{}\n======================================================\n", html);
+
+        // Check: should have the matrix LaTeX content
+        assert!(html.contains("bmatrix"), "Should contain bmatrix");
+        assert!(html.contains("矩阵乘法"), "Should contain 矩阵乘法 heading text");
+        // After HTML-escaping, & becomes &amp; but \\ is preserved (backslash is not special in HTML)
+        assert!(html.contains("a_{11} &amp; a_{12} \\\\"), "Should preserve LaTeX row breaks with &amp;");
+    }

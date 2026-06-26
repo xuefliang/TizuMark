@@ -254,7 +254,10 @@ class MarkdownEditor {
         const id = item.dataset.id;
         const target = this.preview.querySelector(`#${CSS.escape(id)}`);
         if (target) {
-          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          const top = target.getBoundingClientRect().top
+                  - this.preview.getBoundingClientRect().top
+                  + this.preview.scrollTop;
+          this.preview.scrollTo({ top, behavior: 'smooth' });
         }
         outlineContent.querySelectorAll('.outline-item').forEach(el => el.classList.remove('active'));
         item.classList.add('active');
@@ -323,7 +326,7 @@ class MarkdownEditor {
     this.rerenderMermaid();
   }
 
-  rerenderMermaid() {
+  async rerenderMermaid() {
     if (typeof mermaid === 'undefined') return;
     const containers = this.preview.querySelectorAll('.mermaid-container');
     if (containers.length === 0) return;
@@ -340,9 +343,9 @@ class MarkdownEditor {
         securityLevel: 'loose',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
       });
-      mermaid.run({ nodes: containers });
+      await mermaid.run({ nodes: Array.from(containers) });
     } catch (e) {
-      console.warn('Mermaid re-render error:', e);
+      console.error('Mermaid re-render error:', e);
     }
   }
 
@@ -679,6 +682,7 @@ class MarkdownEditor {
   }
 
   addTab(name = '未命名', content = '', filePath = null) {
+    content = content.replace(/\r\n/g, '\n');
     const tab = new Tab(name, content, filePath);
     this.tabs.push(tab);
     this.switchTab(this.tabs.length - 1);
@@ -1347,7 +1351,10 @@ class MarkdownEditor {
       if (href.startsWith('#')) {
         const target = this.preview.querySelector(href);
         if (target) {
-          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          const top = target.getBoundingClientRect().top
+                  - this.preview.getBoundingClientRect().top
+                  + this.preview.scrollTop;
+          this.preview.scrollTo({ top, behavior: 'smooth' });
         }
         return;
       }
@@ -1706,8 +1713,10 @@ ${htmlContent}
   }
 
   async updatePreview() {
+    console.log('[preview] updatePreview called');
     try {
       const content = this.activeTab.content;
+      console.log('[preview] content length:', content.length);
 
       const hasToc = content.includes('[TOC]') || content.includes('[toc]');
       let tocHtml = '';
@@ -1724,16 +1733,21 @@ ${htmlContent}
 
       this.preview.innerHTML = finalHtml;
 
-      this.processEmojiShortcodes();
-      this.processMathFormulas();
-      this.processHeadings();
-      this.processMermaid();
-      this.addCopyButtons();
+      // Each processing step is independently guarded so one failure
+      // never cascades and destroys the rest of the preview.
+      try { this.processEmojiShortcodes(); } catch (e) { console.warn('[preview] Emoji error:', e); }
+      try { this.processDisplayMath(); } catch (e) { console.warn('[preview] Display math error:', e); }
+      try { this.processInlineMath(); } catch (e) { console.warn('[preview] Inline math error:', e); }
+      try { this.processHeadings(); } catch (e) { console.warn('[preview] Headings error:', e); }
+      try { await this.processMermaid(); } catch (e) { console.warn('[preview] Mermaid error:', e); }
+      try { this.addCopyButtons(); } catch (e) { console.warn('[preview] Copy btn error:', e); }
 
       if (typeof hljs !== 'undefined') {
-        this.preview.querySelectorAll('pre code').forEach((block) => {
-          hljs.highlightElement(block);
-        });
+        try {
+          this.preview.querySelectorAll('pre code').forEach((block) => {
+            hljs.highlightElement(block);
+          });
+        } catch (e) { console.warn('[preview] HLJS error:', e); }
       }
     } catch (error) {
       const msg = String(error).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1782,61 +1796,62 @@ ${htmlContent}
     });
   }
 
-  processMathFormulas() {
-    if (typeof renderMathInElement === 'undefined') return;
-
-    try {
-      this.renderDisplayMathBlocks();
-
-      renderMathInElement(this.preview, {
-        delimiters: [
-          { left: '$$', right: '$$', display: true },
-          { left: '$', right: '$', display: false },
-          { left: '\\(', right: '\\)', display: false },
-          { left: '\\[', right: '\\]', display: true }
-        ],
-        throwOnError: false
-      });
-    } catch (e) {
-      console.warn('KaTeX rendering error:', e);
-    }
-  }
-
-  renderDisplayMathBlocks() {
+  // Render display math ($$...$$) by walking DOM text nodes.
+  // Uses TreeWalker to avoid false matches on $$ inside <code> tags
+  // or other HTML elements — each text node is checked independently.
+  // The Rust backend HTML-escapes & to &amp; in math blocks, which the
+  // browser correctly decodes back to & in text nodes before we process.
+  processDisplayMath() {
+    if (typeof katex === 'undefined') return;
     const walker = document.createTreeWalker(this.preview, NodeFilter.SHOW_TEXT, null, false);
     const textNodes = [];
     let node;
     while (node = walker.nextNode()) textNodes.push(node);
 
-    for (const textNode of textNodes) {
+    let count = 0;
+    textNodes.forEach(textNode => {
       const text = textNode.textContent;
-      if (!text.includes('$$')) continue;
+      const trimmed = text.trim();
+      if (!trimmed.startsWith('$$')) return;
 
-      const parts = text.split(/(\$\$[\s\S]*?\$\$)/);
-      if (parts.length <= 1) continue;
+      const match = trimmed.match(/^\$\$([\s\S]*?)\$\$\s*$/);
+      if (!match) return;
 
-      const fragment = document.createDocumentFragment();
-      for (const part of parts) {
-        if (part.startsWith('$$') && part.endsWith('$$') && part.length > 4) {
-          const latex = part.slice(2, -2).trim();
-          if (latex) {
-            const span = document.createElement('div');
-            span.className = 'katex-display';
-            try {
-              katex.render(latex, span, { displayMode: true, throwOnError: false });
-            } catch (e) {
-              span.textContent = part;
-            }
-            fragment.appendChild(span);
-          }
-        } else if (part) {
-          fragment.appendChild(document.createTextNode(part));
-        }
+      const latex = match[1].trim();
+      if (!latex) return;
+
+      try {
+        const rendered = katex.renderToString(latex, { displayMode: true, throwOnError: false });
+        const container = document.createElement('span');
+        container.innerHTML = rendered;
+        textNode.replaceWith(container);
+        count++;
+      } catch (e) {
+        console.warn('[math] Display render error:', e.message, latex.substring(0, 80));
       }
-      textNode.parentNode.replaceChild(fragment, textNode);
+    });
+
+    if (count > 0) {
+      console.log('[math] Rendered', count, 'display math block(s) via TreeWalker');
     }
   }
 
+  // Render inline math ($...$ and \\(...\\)) via KaTeX auto-render.
+  processInlineMath() {
+    if (typeof renderMathInElement === 'undefined') return;
+    try {
+      renderMathInElement(this.preview, {
+        delimiters: [
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false }
+        ],
+        throwOnError: false,
+        ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      });
+    } catch (e) {
+      console.warn('[math] Inline auto-render error:', e);
+    }
+  }
   processHeadings() {
     const idCount = {};
     this.preview.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(heading => {
@@ -1863,7 +1878,7 @@ ${htmlContent}
     });
   }
 
-  processMermaid() {
+  async processMermaid() {
     if (typeof mermaid === 'undefined') return;
 
     this.preview.querySelectorAll('code.language-mermaid').forEach((block, index) => {
@@ -1877,6 +1892,9 @@ ${htmlContent}
       pre.replaceWith(container);
     });
 
+    const containers = this.preview.querySelectorAll('.mermaid-container');
+    if (containers.length === 0) return;
+
     try {
       mermaid.initialize({
         startOnLoad: false,
@@ -1884,9 +1902,9 @@ ${htmlContent}
         securityLevel: 'loose',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
       });
-      mermaid.run({ nodes: this.preview.querySelectorAll('.mermaid-container') });
+      await mermaid.run({ nodes: Array.from(containers) });
     } catch (e) {
-      console.warn('Mermaid rendering error:', e);
+      console.error('Mermaid rendering error:', e);
     }
   }
 
@@ -2684,11 +2702,41 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   window.editor = new MarkdownEditor();
 
+  // 当系统已有一个 TizuMark 实例运行时，再次双击 .md 文件会在当前窗口打开新标签页
+  await window.__TAURI__.event.listen('file-open', async (event) => {
+    const args = event.payload;
+    if (!args || args.length === 0) return;
+
+    for (const filePath of args) {
+      if (filePath.startsWith('-')) continue;
+
+      const existingIndex = window.editor.tabs.findIndex(t => t.filePath === filePath);
+      if (existingIndex !== -1) {
+        window.editor.switchTab(existingIndex);
+        continue;
+      }
+      try {
+        const content = await invoke('read_file', { path: filePath });
+        const name = filePath.split(/[/\\]/).pop();
+        window.editor.addTab(name, content, filePath);
+        window.editor.updateWordCount();
+        window.editor.updateOutline();
+        window.editor.setStatus(`已打开: ${name}`);
+      } catch (_) {
+        // 文件不存在或无法访问，静默忽略
+      }
+    }
+
+    try {
+      await window.__TAURI__.window.getCurrentWindow().setFocus();
+    } catch (_) {}
+  });
+
   try {
     const args = await invoke('get_cli_args');
     if (args.length > 0) {
       const filePath = args[0];
-      const content = await invoke('read_file', { path: filePath });
+      const content = (await invoke('read_file', { path: filePath })).replace(/\r\n/g, '\n');
       const name = filePath.split(/[/\\]/).pop();
       window.editor.activeTab.content = content;
       window.editor.activeTab.savedContent = content;
