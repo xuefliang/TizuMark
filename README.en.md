@@ -9,9 +9,9 @@
 </div>
 
 <p align="center">
-  <b>⚡Lightning Fast &nbsp;·&nbsp; 🚀High Performance &nbsp;·&nbsp; ✨Elegant &nbsp;·&nbsp; 🆓<font color="#16a34a">Free Forever</font></b>
+  <b>⚡Lightweight &nbsp;·&nbsp; 🚀Blazing Fast &nbsp;·&nbsp; ✨Minimal &nbsp;·&nbsp; 🆓<font color="#16a34a">Free & Open Source</font></b>
   <br>
-  <b>A Cross-Platform Markdown Editor That Just Works</b>
+  <b>A clean, fast Markdown editor</b>
 </p>
 
 <p align="center">
@@ -21,45 +21,48 @@
   <img src="https://img.shields.io/badge/Linux-Coming%20Soon-lightgrey" alt="Linux">
   <img src="https://img.shields.io/badge/Tauri-2.x-orange" alt="Tauri">
   <img src="https://img.shields.io/badge/Rust-1.77%2B-black" alt="Rust">
-  <img src="https://img.shields.io/badge/License-Proprietary-red" alt="License">
+  <img src="https://img.shields.io/badge/License-GPL--3.0-blue" alt="License">
 </p>
 
 ---
 
 ## Why TizuMark?
 
-<p align="center"><b>One app. Every Markdown task. Zero friction.</b></p>
+<p align="center"><b>Open. Read. Edit. Export. That's it.</b></p>
 
-| | The Old Way | ✨ TizuMark |
+The world isn't short of Markdown editors. But most fall into one of two camps: heavyweight monsters that hog hundreds of MB, or toys too barebones for real work. TizuMark lands right in the sweet spot.
+
+| | The Usual Way | ✨ TizuMark |
 |---|---|---|
-| 🚀 **Startup** | Wait for heavy editor → install plugins → open file → lag | **Double-click. Instant.** |
-| 📝 **Editing** | Split windows, switch tabs, lose context | **Live side-by-side WYSIWYG preview** |
-| 🧭 **Navigation** | Scroll endlessly, lose your place | **Smart outline — one click, you're there** |
-| 📤 **Export** | Install converters → CLI incantations → broken formatting | **One-click HTML or high-res PNG** |
-| 📐 **Math** | Requires LaTeX setup or just isn't supported | **Built-in KaTeX — type `$E=mc^2$`, see it rendered** |
-| 📊 **Diagrams** | Switch to drawing tool → export → paste | **Mermaid code → live diagrams** |
-| 🎨 **Themes** | One stale theme, config-file diving to change it | **Light / Dark / System — one click** |
-| 💾 **Memory** | Hundreds of MB of RAM for a text editor | **Rust-powered, sub-50MB** |
-| 🖥️ **Platforms** | Fragmented ecosystem, inconsistent UX | **True native on Windows, macOS & Linux** |
+| 🚀 **Startup** | Boot up a full IDE, install plugins, wait... and wait | **Double-click. Up in under a second.** |
+| 👀 **Reading** | Source on one side, render on the other — squint and scroll | **Live preview, WYSIWYG, no mode switching needed** |
+| 📂 **Tabs** | Ten windows, taskbar chaos | **Clean multi-tab interface. Peace of mind.** |
+| 🧭 **Navigation** | Scroll endlessly, can't find that one section you need | **Auto-generated outline. One click to any heading.** |
+| ✍️ **Writing** | Format manually, inserting a table feels like surgery | **Syntax highlighting, right-click menus, auto-complete — just write** |
+| 📐 **Math** | No LaTeX installed? Sorry, you're out of luck | **Built-in KaTeX — inline, display, matrices, equation systems** |
+| 📊 **Diagrams** | Fire up another tool, draw, export, paste, repeat | **Mermaid — flowcharts, sequence diagrams, Gantt charts, in code** |
+| 💾 **Resources** | Hundreds of MB RAM, multi-GB install | **Rust engine. ~5MB installer, <50MB RAM.** |
+| 🎨 **Themes** | One stale color scheme, or config-file archaeology | **Light / Dark / System — one click, no fumbling** |
+| 🖥️ **Platforms** | Different tool for every OS, different quirks | **One codebase. Native on Windows, macOS & Linux.** |
 
 ---
 
-## Features at a Glance
+## Features
 
-| Editing | Preview | Export |
+| 📝 Editing | 👁️ Preview | 📤 Export |
 |---|---|---|
-| Multi-tab workflow | Live scroll sync | Standalone HTML file |
-| Full GFM syntax highlighting | KaTeX math rendering | High-res long screenshot |
-| Code blocks: 100+ languages | Mermaid diagrams | Preserved styling |
-| Auto bracket closing | Emoji shortcodes | Works offline |
-| Find & replace w/ regex | Responsive images | No network needed |
+| Full GFM syntax highlighting | Live scroll-synced preview | Standalone HTML (with full styling) |
+| 100+ language code highlighting | KaTeX math rendering | High-res long screenshot PNG |
+| Find & replace with regex | Mermaid flowcharts, sequences, Gantt, state | Dark / light theme preserved |
+| Auto bracket & quote pairing | Emoji shortcodes (`:rocket:` → 🚀) | 100% offline |
+| Insert menu (tables, callouts, TOC) | Adaptive image sizing | CJK Emoji support |
 
-| Productivity | Personalization | Professional |
+| ⚡ Productivity | 🎨 Style | 🔧 Power |
 |---|---|---|
-| Outline sidebar nav | Fully customizable shortcuts | CLI file opening |
-| Drag & drop file open | Font, line-height, max-width | File association: .md, .markdown |
-| Adjustable split ratio | Tab size, word wrap toggle | Auto-save & dirty state |
-| Batch file open | Line numbers on/off | Word & char count |
+| Outline sidebar — jump anywhere | Light / Dark / Follow System themes | CLI file opening |
+| Drag & drop, batch file open | Font size, line height, max width | File association: .md, .markdown |
+| Free-drag split pane ratio | Tab width, word wrap toggle | Auto-save + dirty state markers |
+| Multi-tab + right-click context menus | Fully rebindable shortcuts | Status bar word & char count |
 
 ---
 
@@ -71,15 +74,15 @@ Get the latest installer from [Releases](https://github.com/tizu/tizu-mark/relea
 
 | Platform | Status |
 |---|---|
-| Windows | Released |
-| macOS | Coming soon |
-| Linux | Coming soon |
+| Windows | ✅ Released |
+| macOS | 🔜 Coming soon |
+| Linux | 🔜 Coming soon |
 
-Install, launch, write.
+Install, launch, done.
 
-> Want to see everything TizuMark can do? Try the demo: [demo.md](demo.md)
+> Want to see every syntax TizuMark supports? Open the demo: [demo.md](demo.md)
 
-### Keyboard Shortcuts
+### Shortcuts
 
 | Shortcut | Action | Shortcut | Action |
 |---|---|---|---|
@@ -87,9 +90,8 @@ Install, launch, write.
 | `Ctrl+O` | Open File | `Ctrl+F` | Find |
 | `Ctrl+S` | Save File | `Ctrl+H` | Find & Replace |
 | `Ctrl+B` | Bold | `Ctrl+I` | Italic |
-| `Ctrl+K` | Insert Link | `Ctrl+Tab` | Switch Tab |
 
-> Customize all shortcuts via `File → Keyboard Shortcuts`
+> All shortcuts are customizable via `File → Keyboard Shortcuts`
 
 ### Build from Source
 
@@ -98,7 +100,7 @@ git clone https://github.com/tizu/tizu-mark.git
 cd markdown
 npm install
 npm run dev      # dev mode
-npm run build    # production
+npm run build    # production build
 ```
 
 ---
@@ -114,8 +116,8 @@ npm run build    # production
                │ IPC (ipc: / tauri:)
 ┌──────────────┴───────────────────────────┐
 │              Backend (Rust)               │
-│   Tauri 2.5  │  pulldown-cmark         │
-│   File I/O   │  Native Dialogs          │
+│   Tauri 2.5  │  pulldown-cmark           │
+│   File I/O   │  Native Dialogs           │
 └──────────────┬───────────────────────────┘
                │
         ┌──────┴──────┐
@@ -125,16 +127,16 @@ npm run build    # production
         └─────────────┘
 ```
 
-> **Tauri vs alternatives**: Tauri v2 uses the OS native WebView, producing ~5MB installers — roughly 1/5 the footprint of comparable Electron-based tools.
+> Tauri v2 uses the OS native WebView — ~5MB installer, ~1/5 the footprint of Electron-based alternatives.
 
 ---
 
 ## FAQ
 
 <details open>
-<summary><b>Is TizuMark free?</b></summary>
+<summary><b>Is TizuMark really free?</b></summary>
 
-TizuMark is free forever. Core features have no restrictions. A premium tier may be introduced in the future, but existing features will remain unaffected.
+Yes. Free forever, open source, no feature paywalls.
 </details>
 
 <details open>
@@ -146,7 +148,7 @@ Click "Restore Default" in `File → Settings` or `File → Keyboard Shortcuts`.
 <details open>
 <summary><b>What file formats are supported?</b></summary>
 
-`.md`, `.markdown`, `.txt`. More formats are planned.
+`.md`, `.markdown`, `.txt`. More coming.
 </details>
 
 <details open>
@@ -159,17 +161,25 @@ Click "Restore Default" in `File → Settings` or `File → Keyboard Shortcuts`.
 
 ---
 
-## Support the Project
+## Donate
 
-If TizuMark makes your writing flow better, consider buying the author a coffee ☕
+<p align="center"><b>One person. No salary. Your support keeps this alive.</b></p>
+
+I built TizuMark because I was tired of Markdown tools that were either bloated or broken. So I made my own.
+
+Every feature, every pixel, every bug squashed — carved out on nights and weekends after my day job. No company. No team. No funding. Just someone with a stubborn refusal to ship something mediocre.
+
+If TizuMark has made your life even a little easier — docs look cleaner, writing flows better, that export earned you a compliment — please consider chipping in. **A hundred bucks or a single dollar — it all counts, and every bit of it genuinely makes my day and extends this project's runway.**
+
+Can't donate? No worries. A GitHub star, a shout-out to a friend, a "nice tool" in the group chat — that's already huge.
 
 <p align="center">
-  <img src="donate-wechat.png" alt="WeChat Donate" width="200">
+  <img src="donate-wechat.png" alt="WeChat Donate" width="220">
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="donate-alipay.png" alt="Alipay Donate" width="200">
+  <img src="donate-alipay.png" alt="Alipay Donate" width="220">
 </p>
 
-Every bit of support fuels continued development 🚀
+<p align="center"><sub>I read every donation notification. Thank you.</sub></p>
 
 ---
 
@@ -177,26 +187,26 @@ Every bit of support fuels continued development 🚀
 
 | Channel | Link |
 |---|---|
-| QQ Group | **1035294939** [@Click the link to join the group chat【Tizu交流群】](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=G0xAh9l042apAmjy9MAKOI6pSMWhV5jI&authKey=hWwxCXRZkWorgQZtiBNeRE6L12Ow6CLSo9K9dWzSjDFNuIEfmnmLAWH1T3qooH40&noverify=0&group_code=1035294939)|
+| QQ Group | **1035294939** [@Join the group【Tizu交流群】](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=G0xAh9l042apAmjy9MAKOI6pSMWhV5jI&authKey=hWwxCXRZkWorgQZtiBNeRE6L12Ow6CLSo9K9dWzSjDFNuIEfmnmLAWH1T3qooH40&noverify=0&group_code=1035294939)|
 | GitHub | [@tizu](https://github.com/tizu) |
 | Gitee | [@tizu](https://gitee.com/tizu) |
 
-For collaboration, custom development, or general inquiries — join our QQ group or open an issue.
+Questions, feedback, collaboration — open an issue or join the QQ group.
 
 ---
 
 ## License
 
-Copyright (c) 2024-2026 TizuMark. All rights reserved.
+Copyright (c) 2024-2026 TizuMark
 
-This software is proprietary commercial software. Unauthorized copying, modification, distribution, or use of any part of this software is strictly prohibited.
+This software is released under the [GNU General Public License v3.0](LICENSE). You are free to use, modify, and distribute it, but derivative works must remain under GPL v3.
 
-Bundled open-source components are licensed under their respective terms. See `Help → About` within the application for details.
+Bundled open-source components are licensed under their respective terms. See `Help → About` in the app for details.
 
 ---
 
 <p align="center">
-  <b>✨ TizuMark — Write at the speed of thought</b><br><br>
+  <b>✨ TizuMark — Stupidly light. Exactly fast enough.</b><br><br>
   <a href="https://github.com/tizu/tizu-mark/releases">⬇ Download</a>
   &nbsp;·&nbsp;
   <a href="https://github.com/tizu/tizu-mark/issues">🐛 Report Bug</a>

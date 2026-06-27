@@ -151,8 +151,8 @@ const I18N = {
     versionDesc: '轻量级跨平台 Markdown 编辑器',
     buildInfo: '基于 Tauri v2.5 + Rust 构建',
     copyrightLine: 'Copyright (c) 2024-2026 TizuMark',
-    proprietary: '本软件为专有商业软件，保留所有权利。',
-    noUnauthorized: '未经授权，禁止以任何形式复制、修改、分发或使用本软件。',
+    proprietary: '本软件基于 GPL v3 开源协议发布。',
+    noUnauthorized: '欢迎自由使用、修改和分发，衍生作品须延续 GPL v3 协议。',
     shortcutLabel: { newFile: '新建文件', openFile: '打开文件', saveFile: '保存文件', closeTab: '关闭标签页', find: '查找（编辑器）', findReplace: '查找替换', nextTab: '下一个标签页', prevTab: '上一个标签页', bold: '加粗', italic: '斜体', insertLink: '插入链接' },
     modify: '修改',
     clear: '清除',
@@ -320,8 +320,8 @@ const I18N = {
     versionDesc: 'Lightweight cross-platform Markdown editor',
     buildInfo: 'Built with Tauri v2.5 + Rust',
     copyrightLine: 'Copyright (c) 2024-2026 TizuMark',
-    proprietary: 'This software is proprietary commercial software. All rights reserved.',
-    noUnauthorized: 'Unauthorized reproduction, modification, distribution, or use of this software is prohibited.',
+    proprietary: 'This software is released under the GPL v3 open-source license.',
+    noUnauthorized: 'Free to use, modify, and distribute. Derivative works must remain under GPL v3.',
     shortcutLabel: { newFile: 'New File', openFile: 'Open File', saveFile: 'Save File', closeTab: 'Close Tab', find: 'Find (Editor)', findReplace: 'Find & Replace', nextTab: 'Next Tab', prevTab: 'Previous Tab', bold: 'Bold', italic: 'Italic', insertLink: 'Insert Link' },
     modify: 'Modify',
     clear: 'Clear',
@@ -1900,6 +1900,20 @@ class MarkdownEditor {
         return;
       }
 
+      if (href.endsWith('.md')) {
+        try {
+          const resp = await fetch(href);
+          if (resp.ok) {
+            const content = await resp.text();
+            const name = href.split('/').pop();
+            this.addTab(name, content, null);
+            this.activeTab.savedContent = content;
+            this.updateTabDisplay();
+            return;
+          }
+        } catch (_) { /* fall through to external open */ }
+      }
+
       if (href.startsWith('mailto:') || href.startsWith('tel:')) {
         window.location.href = href;
         return;
@@ -3181,10 +3195,8 @@ ${htmlContent}
         }
       }
     }
-    await getCurrentWindow().close();
+    await getCurrentWindow().destroy();
   }
-
-  // ========== 顶部插入菜单 ==========
 
   initInsertMenu() {
     const insertMenu = document.getElementById('insert-menu');
@@ -3349,23 +3361,22 @@ function initEula() {
   return new Promise((resolve) => {
     const overlay = document.getElementById('eula-dialog');
     const acceptBtn = document.getElementById('eula-accept');
-    const declineBtn = document.getElementById('eula-decline');
 
     overlay.classList.remove('hidden');
+
+    // GPL 链接：在浏览器中打开
+    const gplLink = overlay.querySelector('.gpl-link');
+    if (gplLink) {
+      gplLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.open('https://www.gnu.org/licenses/gpl-3.0.html', '_blank');
+      });
+    }
 
     acceptBtn.addEventListener('click', () => {
       localStorage.setItem('tizumark-eula-accepted', 'true');
       overlay.classList.add('hidden');
       resolve();
-    });
-
-    declineBtn.addEventListener('click', async () => {
-      try {
-        const { getCurrentWindow } = window.__TAURI__.window;
-        await getCurrentWindow().close();
-      } catch (e) {
-        window.close();
-      }
     });
   });
 }
