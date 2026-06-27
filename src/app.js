@@ -2555,6 +2555,25 @@ ${htmlContent}
     return blocks;
   }
 
+  // 遍历预览 DOM，收集所有块级渲染元素
+  collectBlockElements(root) {
+    const blockTags = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'PRE', 'TABLE', 'UL', 'OL', 'BLOCKQUOTE', 'HR']);
+    const result = [];
+
+    const walk = (el) => {
+      for (const child of el.children) {
+        if (blockTags.has(child.tagName)) {
+          result.push(child);
+        } else {
+          walk(child);
+        }
+      }
+    };
+
+    walk(root);
+    return result;
+  }
+
   async updatePreview() {
     const gen = ++this._renderGeneration;
     try {
