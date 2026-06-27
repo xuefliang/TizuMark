@@ -516,6 +516,21 @@
     </div>
   </div>
 
+  <div id="confirm-dialog" class="dialog-overlay hidden" role="dialog" aria-modal="true">
+    <div class="dialog confirm-dialog">
+      <div class="dialog-header">
+        <h2 id="confirm-dialog-title">确认</h2>
+      </div>
+      <div class="dialog-content">
+        <p id="confirm-dialog-message">确定要恢复默认设置吗？</p>
+      </div>
+      <div class="dialog-footer">
+        <button id="confirm-dialog-cancel" class="dialog-btn">取消</button>
+        <button id="confirm-dialog-confirm" class="dialog-btn dialog-btn-primary">确认</button>
+      </div>
+    </div>
+  </div>
+
   <div id="shortcuts-dialog" class="dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
     <div class="dialog shortcuts-dialog">
       <div class="dialog-header">
@@ -536,6 +551,7 @@
     <div class="dialog settings-dialog">
       <div class="dialog-header">
         <h2 id="settings-title">设置</h2>
+        <button class="dialog-close" id="settings-close-x" aria-label="关闭">&times;</button>
       </div>
       <div class="dialog-content settings-content">
         <div class="settings-section">
@@ -646,11 +662,12 @@
       </div>
       <div class="dialog-footer">
         <button id="settings-reset" class="dialog-btn">恢复默认</button>
-        <button id="settings-close-btn" class="dialog-btn dialog-btn-primary">完成</button>
+        <button id="settings-cancel-btn" class="dialog-btn">取消</button>
+        <button id="settings-save-btn" class="dialog-btn dialog-btn-primary">保存</button>
       </div>
     </div>
   </div>
-  
+
   <!-- 编辑器右键菜单 -->
   <div id="context-menu-editor" class="context-menu hidden">
     <div class="context-menu-item" data-action="cut"><span>剪切</span><span class="shortcut">Ctrl+X</span></div>

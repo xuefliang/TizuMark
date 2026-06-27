@@ -135,6 +135,7 @@ const I18N = {
     followSystem: '跟随系统',
     resetDefault: '恢复默认',
     done: '完成',
+    confirm: '确认',
     themeSwitched: '已切换到{theme}主题',
     scrollTop: 'TOP',
     collapseEditor: '折叠编辑器',
@@ -315,6 +316,7 @@ const I18N = {
     followSystem: 'Follow System',
     resetDefault: 'Reset Default',
     done: 'Done',
+    confirm: 'Confirm',
     themeSwitched: 'Switched to {theme} theme',
     scrollTop: 'TOP',
     collapseEditor: 'Collapse Editor',
@@ -554,7 +556,11 @@ class MarkdownEditor {
     document.querySelector('#settings-dialog .settings-section:nth-child(4) .settings-row:nth-child(3) label').textContent = t('defaultView');
     document.querySelector('#settings-dialog .settings-section:nth-child(4) .settings-row:nth-child(4) label').textContent = t('scrollSync');
     document.getElementById('settings-reset').textContent = t('resetDefault');
-    document.getElementById('settings-close-btn').textContent = t('done');
+    document.getElementById('settings-cancel-btn').textContent = t('cancel');
+    document.getElementById('settings-save-btn').textContent = t('save');
+    document.getElementById('settings-close-x').setAttribute('aria-label', t('cancel'));
+    document.getElementById('confirm-dialog-confirm').textContent = t('confirm');
+    document.getElementById('confirm-dialog-cancel').textContent = t('cancel');
     // Update color scheme options text
     const csSelect = document.getElementById('set-color-scheme');
     if (csSelect) {
@@ -645,7 +651,9 @@ class MarkdownEditor {
 
   initSettings() {
     document.getElementById('btn-settings').addEventListener('click', () => this.showSettings());
-    document.getElementById('settings-close-btn').addEventListener('click', () => this.hideSettings());
+    document.getElementById('settings-close-x').addEventListener('click', () => this.hideSettings());
+    document.getElementById('settings-save-btn').addEventListener('click', () => this.hideSettings());
+    document.getElementById('settings-cancel-btn').addEventListener('click', () => this.hideSettings());
     document.getElementById('settings-dialog').addEventListener('click', (e) => {
       if (e.target.id === 'settings-dialog') this.hideSettings();
     });
@@ -927,11 +935,11 @@ class MarkdownEditor {
   }
 
   async resetSettings() {
-    const result = await this.showSaveDialog(
+    const confirmed = await this.showConfirmDialog(
       this.t('settings'),
       this.t('confirmResetSettings')
     );
-    if (result === 'cancel') return;
+    if (!confirmed) return;
 
     const defaults = {
       fontSize: 14,
@@ -2139,6 +2147,32 @@ class MarkdownEditor {
       document.getElementById('save-dialog-save').addEventListener('click', onSave);
       document.getElementById('save-dialog-discard').addEventListener('click', onDiscard);
       document.getElementById('save-dialog-cancel').addEventListener('click', onCancel);
+    });
+  }
+
+  showConfirmDialog(title, message) {
+    return new Promise((resolve) => {
+      const dialog = document.getElementById('confirm-dialog');
+      document.getElementById('confirm-dialog-title').textContent = title || this.t('confirm');
+      document.getElementById('confirm-dialog-message').textContent = message || '';
+      dialog.classList.remove('hidden');
+
+      const onConfirm = () => {
+        cleanup();
+        resolve(true);
+      };
+      const onCancel = () => {
+        cleanup();
+        resolve(false);
+      };
+      const cleanup = () => {
+        dialog.classList.add('hidden');
+        document.getElementById('confirm-dialog-confirm').removeEventListener('click', onConfirm);
+        document.getElementById('confirm-dialog-cancel').removeEventListener('click', onCancel);
+      };
+
+      document.getElementById('confirm-dialog-confirm').addEventListener('click', onConfirm);
+      document.getElementById('confirm-dialog-cancel').addEventListener('click', onCancel);
     });
   }
 

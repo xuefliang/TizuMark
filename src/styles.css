@@ -1861,8 +1861,9 @@ body.is-resizing .preview-pane {
   z-index: 1000;
 }
 
-/* 保存确认对话框必须在其他对话框之上 */
-#save-dialog.dialog-overlay {
+/* 顶层对话框（保存确认、设置恢复确认等）必须在其他对话框之上 */
+#save-dialog.dialog-overlay,
+#confirm-dialog.dialog-overlay {
   z-index: 1001;
 }
 
