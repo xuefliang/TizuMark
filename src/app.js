@@ -1212,11 +1212,6 @@ class MarkdownEditor {
   }
 
   async closeTab(index) {
-    if (this.tabs.length === 1) {
-      this.newFile();
-      return;
-    }
-
     if (index < 0 || index >= this.tabs.length) return;
 
     const tab = this.tabs[index];
@@ -2271,10 +2266,8 @@ ${htmlContent}
   }
 
   async updatePreview() {
-    console.log('[preview] updatePreview called');
     try {
       const content = this.activeTab.content;
-      console.log('[preview] content length:', content.length);
 
       const hasToc = content.includes('[TOC]') || content.includes('[toc]');
       let tocHtml = '';
@@ -2289,6 +2282,9 @@ ${htmlContent}
         finalHtml = finalHtml.replace(/<p>\[TOC\]<\/p>|<p>\[toc\]<\/p>/gi, tocHtml);
       }
 
+      // 渲染期间保存预览滚动位置 + 阻断同步，防止跳动
+      const prevScrollTop = this.preview.scrollTop;
+      this.syncingScroll = true;
       this.preview.innerHTML = finalHtml;
 
       // 默认展开所有 <details>
@@ -2298,7 +2294,6 @@ ${htmlContent}
       // never cascades and destroys the rest of the preview.
       try { await this.processImages(); } catch (e) { console.warn('[preview] Images error:', e); }
       try { this.processEmojiShortcodes(); } catch (e) { console.warn('[preview] Emoji error:', e); }
-      try { this.processDisplayMath(); } catch (e) { console.warn('[preview] Display math error:', e); }
       try { this.processInlineMath(); } catch (e) { console.warn('[preview] Inline math error:', e); }
       try { this.processHeadings(); } catch (e) { console.warn('[preview] Headings error:', e); }
       try { await this.processMermaid(); } catch (e) { console.warn('[preview] Mermaid error:', e); }
@@ -2311,7 +2306,12 @@ ${htmlContent}
           });
         } catch (e) { console.warn('[preview] HLJS error:', e); }
       }
+
+      // 恢复预览滚动位置，解除同步锁
+      this.preview.scrollTop = prevScrollTop;
+      this.syncingScroll = false;
     } catch (error) {
+      this.syncingScroll = false;
       const msg = String(error).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       this.preview.innerHTML = `<p style="color: red;">预览错误: ${msg}</p>`;
     }
