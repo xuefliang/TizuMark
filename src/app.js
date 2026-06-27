@@ -404,6 +404,7 @@ class MarkdownEditor {
     this.cm = null;
     this.debounceTimer = null;
     this._renderGeneration = 0;
+    this._linePositions = [{ line: 0, top: 0 }];
     this.isDark = false;
     this.viewMode = 'preview';
 
@@ -2572,6 +2573,48 @@ ${htmlContent}
 
     walk(root);
     return result;
+  }
+
+  // 将 markdown 块映射到预览 DOM 元素，注入 data-md-line 属性，构建位置映射
+  buildLinePositionMap(blocks) {
+    const elements = this.collectBlockElements(this.preview);
+    const positions = [];
+
+    if (elements.length === 0 || blocks.length === 0) {
+      this._linePositions = [{ line: 0, top: 0 }];
+      return;
+    }
+
+    const previewRect = this.preview.getBoundingClientRect();
+    const scrollTop = this.preview.scrollTop;
+
+    for (let i = 0; i < elements.length; i++) {
+      const blockIdx = Math.floor((i / elements.length) * blocks.length);
+      const line = blocks[blockIdx].startLine;
+      elements[i].dataset.mdLine = line;
+      const rect = elements[i].getBoundingClientRect();
+      positions.push({
+        line: line,
+        top: rect.top - previewRect.top + scrollTop,
+      });
+    }
+
+    // 合并相同行号的标记（去重，只保留第一个）
+    const deduped = [];
+    let lastLine = -1;
+    for (const p of positions) {
+      if (p.line !== lastLine) {
+        deduped.push(p);
+        lastLine = p.line;
+      }
+    }
+
+    // 确保文档开头有标记
+    if (deduped.length === 0 || deduped[0].line > 0) {
+      deduped.unshift({ line: 0, top: 0 });
+    }
+
+    this._linePositions = deduped;
   }
 
   async updatePreview() {
