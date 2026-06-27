@@ -315,11 +315,16 @@ fn embed_abbr_data(html: &str, abbreviations: &[(String, String)]) -> String {
 }
 
 #[tauri::command]
-fn render_markdown(content: String) -> String {
+fn render_markdown(content: String, enable_abbr: Option<bool>) -> String {
+    let enable_abbr = enable_abbr.unwrap_or(true);
     use pulldown_cmark::{Parser, Options, html};
 
-    let abbreviations = extract_abbreviations(&content);
-    let preprocessed = preprocess_markdown(content);
+    let abbreviations = if enable_abbr {
+        extract_abbreviations(&content)
+    } else {
+        Vec::new()
+    };
+    let preprocessed = preprocess_markdown(content, enable_abbr);
     let (guarded, placeholders) = guard_math_blocks(&preprocessed);
 
     let mut options = Options::empty();
@@ -452,7 +457,7 @@ fn restore_math_blocks(html: &str, placeholders: &[String]) -> String {
     result
 }
 
-fn preprocess_markdown(content: String) -> String {
+fn preprocess_markdown(content: String, enable_abbr: bool) -> String {
     let lines: Vec<&str> = content.lines().collect();
     let len = lines.len();
     let mut in_code_block = false;
@@ -504,7 +509,7 @@ fn preprocess_markdown(content: String) -> String {
         }
         
         // *[TERM]: definition → abbreviation
-        if line.starts_with("*[") {
+        if enable_abbr && line.starts_with("*[") {
             if let Some(bracket_end) = line.find("]: ") {
                 let term = &line[2..bracket_end]; // between *[ and ]:
                 if !term.is_empty() {
@@ -1013,7 +1018,7 @@ mod tests {
     #[test]
     fn test_render_markdown_xss_in_heading() {
         let input = "# <script>alert(1)</script>".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(!html.contains("<script>"));
         assert!(html.contains("alert(1)"));
     }
@@ -1021,7 +1026,7 @@ mod tests {
     #[test]
     fn test_render_markdown_xss_in_text() {
         let input = "Hello <img src=x onerror=alert(1)>".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(!html.contains("onerror"));
         assert!(html.contains("<img"));
     }
@@ -1029,7 +1034,7 @@ mod tests {
     #[test]
     fn test_render_markdown_script_tag_stripped() {
         let input = "Text <script>document.cookie</script> more".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         eprintln!("script output: {:?}", html);
         assert!(!html.contains("<script>"));
         assert!(!html.contains("</script>"));
@@ -1040,7 +1045,7 @@ mod tests {
     #[test]
     fn test_render_markdown_iframe_stripped() {
         let input = "Text <iframe src=\"evil.com\"></iframe> more".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         eprintln!("iframe output: {:?}", html);
         assert!(!html.contains("<iframe"));
         assert!(!html.contains("</iframe>"));
@@ -1049,7 +1054,7 @@ mod tests {
     #[test]
     fn test_render_markdown_img_preserved() {
         let input = "![alt](https://example.com/img.png)".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("<img"));
         assert!(html.contains("src="));
     }
@@ -1057,7 +1062,7 @@ mod tests {
     #[test]
     fn test_render_markdown_normal() {
         let input = "# Hello\n\nThis is **bold** and *italic*.".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("<h1>"));
         assert!(html.contains("<strong>bold</strong>"));
         assert!(html.contains("<em>italic</em>"));
@@ -1084,7 +1089,7 @@ mod tests {
     #[test]
     fn test_preprocess_alert_xss() {
         let input = "> [!NOTE]\n> <script>alert(1)</script>".to_string();
-        let result = preprocess_markdown(input);
+        let result = preprocess_markdown(input, true);
         assert!(!result.contains("<script>"), "Raw script tag should not appear in: {}", result);
         // After > escaping fix: < is escaped to &lt;, but > is preserved for markdown syntax
         assert!(result.contains("&lt;script"), "Script tag should be escaped in: {}", result);
@@ -1093,7 +1098,7 @@ mod tests {
     #[test]
     fn test_preprocess_alert_normal() {
         let input = "> [!TIP]\n> This is a tip".to_string();
-        let result = preprocess_markdown(input);
+        let result = preprocess_markdown(input, true);
         assert!(result.contains("This is a tip"));
         assert!(result.contains("alert-tip"));
     }
@@ -1101,7 +1106,7 @@ mod tests {
     #[test]
     fn test_render_markdown_table() {
         let input = "| A | B |\n|---|---|\n| 1 | 2 |".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("<table>"));
         assert!(html.contains("<td>1</td>"));
     }
@@ -1109,7 +1114,7 @@ mod tests {
     #[test]
     fn test_render_markdown_code_block() {
         let input = "```javascript\nconsole.log('hello');\n```".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("<code"));
         assert!(html.contains("console.log"));
     }
@@ -1117,7 +1122,7 @@ mod tests {
     #[test]
     fn test_sanitize_preserves_chinese() {
         let input = "# 你好世界\n\n这是**中文**测试。".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("你好世界"));
         assert!(html.contains("中文"));
         assert!(html.contains("<strong>中文</strong>"));
@@ -1126,7 +1131,7 @@ mod tests {
     #[test]
     fn test_sanitize_chinese_with_html() {
         let input = "# 标题\n\n<bold>加粗</bold>文字".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("标题"));
         assert!(html.contains("加粗"));
         assert!(html.contains("文字"));
@@ -1135,7 +1140,7 @@ mod tests {
     #[test]
     fn test_render_markdown_math_block() {
         let input = "$$\n\\begin{bmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{bmatrix}\n$$".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("\\begin{bmatrix}"));
         assert!(html.contains("\\end{bmatrix}"));
         assert!(html.contains("$$"), "Display math $$ delimiters should be preserved for frontend KaTeX");
@@ -1144,14 +1149,14 @@ mod tests {
     #[test]
     fn test_render_markdown_inline_math() {
         let input = "行内公式：$E = mc^2$".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("$E = mc^2$"));
     }
 
     #[test]
     fn test_render_markdown_blockquote() {
         let input = "> 智能标点自动转换".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("<blockquote"), "Blockquote should be present in: {}", html);
         assert!(html.contains("智能标点自动转换"));
     }
@@ -1159,14 +1164,14 @@ mod tests {
     #[test]
     fn test_render_markdown_nested_blockquote() {
         let input = "> 第一层\n> > 第二层".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("<blockquote"), "Blockquote should be present in: {}", html);
     }
 
     #[test]
     fn test_render_markdown_task_list() {
         let input = "- [x] 完成项目文档\n- [ ] 发布版本".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("checkbox"), "Task list checkbox should be present in: {}", html);
         assert!(html.contains("完成项目文档"));
         assert!(html.contains("发布版本"));
@@ -1175,14 +1180,14 @@ mod tests {
     #[test]
     fn test_render_markdown_horizontal_rule() {
         let input = "text before\n\n---\n\ntext after".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("<hr"), "Horizontal rule should be present in: {}", html);
     }
 
     #[test]
     fn test_render_markdown_heading_with_math_section() {
         let input = "### 行内公式\n\n勾股定理：$a^2 + b^2 = c^2$".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("行内公式"), "Heading text should be present in: {}", html);
         assert!(!html.contains("###"), "Raw ### should not be present in: {}", html);
     }
@@ -1190,7 +1195,7 @@ mod tests {
     #[test]
     fn test_render_markdown_heading_after_alert() {
         let input = "> [!NOTE]\n> 提示内容\n\n### 独立公式块\n\n内容".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("独立公式块"), "Heading after alert should be present in: {}", html);
         assert!(!html.contains("###"), "Raw ### should not be present in: {}", html);
     }
@@ -1199,7 +1204,7 @@ mod tests {
     fn test_render_markdown_smart_punctuation_hr() {
         // ENABLE_SMART_PUNCTUATION should not break thematic breaks
         let input = "text\n\n---\n\nmore text".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("<hr"), "Horizontal rule should be present with smart punctuation in: {}", html);
     }
 
@@ -1209,7 +1214,7 @@ mod tests {
         let input = "> [!NOTE]\n> 如 `$$` 符号\n\n### 行内公式\n\n$$
 真实公式
 $$".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("行内公式"), "Heading should be preserved in: {}", html);
         assert!(!html.contains("###"), "Raw ### should not be present in: {}", html);
         assert!(html.contains("真实公式"), "Real math should be preserved in: {}", html);
@@ -1235,7 +1240,7 @@ $$".to_string();
             "\\end{aligned}\n",
             "$$\n",
         ).to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("行内公式"), "Heading '行内公式' should be present in: {}", html);
         assert!(html.contains("独立公式块"), "Heading '独立公式块' should be present in: {}", html);
         assert!(!html.contains("### 行内公式"), "Raw markdown heading should not appear in: {}", html);
@@ -1252,7 +1257,7 @@ $$".to_string();
 let x = 1;
 ```
 ````".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("let x = 1"), "Inner code must be present");
         assert!(html.contains("```"), "Should render literal backticks");
     }
@@ -1260,7 +1265,7 @@ let x = 1;
     fn test_full_demo_md_file() {
         let content = std::fs::read_to_string("../demo.md")
             .expect("Could not read demo.md");
-        let html = render_markdown(content);
+        let html = render_markdown(content, None);
 
         // Find and print context around "### 行内公式"
         if let Some(pos) = html.find("### 行内公式") {
@@ -1320,7 +1325,7 @@ P(A|B) = \frac{P(B|A) \cdot P(A)}{P(B)}
 $$
 "##.to_string();
 
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         eprintln!("\n========== FULL MATH SECTION OUTPUT ==========\n{}\n================================================\n", html);
 
         // Verify structure
@@ -1342,7 +1347,7 @@ $$
             "- [x] Review 代码\n",
             "- [ ] 发布 v0.2.0 版本\n",
         ).to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("checkbox"), "Task list should have checkboxes in: {}", html);
         assert!(html.contains("完成项目文档"));
     }
@@ -1350,7 +1355,7 @@ $$
     #[test]
     fn test_render_blockquote_and_hr() {
         let input = "> 单一引用：TizuMark 的设计哲学是\"简单就是力量\"。\n\n---\n\n## 流程图与图表\n\nTizuMark 内置 Mermaid 图表引擎。".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("<blockquote"), "Blockquote should be present in: {}", html);
         assert!(html.contains("<hr"), "Horizontal rule should be present in: {}", html);
         assert!(html.contains("流程图与图表"), "Heading should be present in: {}", html);
@@ -1381,7 +1386,7 @@ $$\n\
 \n\
 ---\n\
 ".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         eprintln!("\n========== MATRIX BLOCK OUTPUT (with \\\\) ==========\n{}\n======================================================\n", html);
 
         // Check: should have the matrix LaTeX content
@@ -1394,7 +1399,7 @@ $$\n\
     #[test]
     fn test_backslash_escape_asterisk() {
         let input = "\\*not italic\\*".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(!html.contains("<em>"), "Escaped * should not be emphasis");
         assert!(html.contains("not italic"), "Content should be preserved");
     }
@@ -1402,21 +1407,21 @@ $$\n\
     #[test]
     fn test_backslash_escape_bracket() {
         let input = "\\[not a link\\]".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("[not a link]"), "Escaped brackets as literal");
     }
 
     #[test]
     fn test_inline_code_space_trimming() {
         let input = "` code `".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("<code>code</code>"), "Spaces should be trimmed");
     }
 
     #[test]
     fn test_triple_emphasis() {
         let input = "***bold italic***".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("<em><strong>"), "Triple *** should give nested emphasis");
         assert!(html.contains("bold italic"), "Content preserved");
     }
@@ -1424,28 +1429,28 @@ $$\n\
     #[test]
     fn test_html_entity_copy() {
         let input = "&copy; 2025".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(!html.contains("&amp;copy;"), "Entity &copy; should not be double-escaped");
     }
 
     #[test]
     fn test_html_entity_amp() {
         let input = "&amp; is the & symbol".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(!html.contains("&amp;amp;"), "Entity &amp; should not be double-escaped");
     }
 
     #[test]
     fn test_plain_ampersand_escaped() {
         let input = "A & B".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(html.contains("&amp;"), "Plain & should be escaped");
     }
 
     #[test]
     fn test_math_before_alert() {
         let input = "如果你在写技术文档，可以自然地插入数学公式：\n\n$$\nO(1) < O(\\log n) < O(n) < O(n \\log n) < O(n^2) < O(2^n)\n$$\n\n> [!TIP]\n> **写作建议**：好的技术文档是\"分层\"的——正文讲核心逻辑，脚注补充细节，引用块标注出处，提示框强调要点。";
-        let html = render_markdown(input.to_string());
+        let html = render_markdown(input.to_string(), None);
         assert!(html.contains("$$"), "Math $$ should be preserved");
         assert!(!html.contains("<p>$$"), "Math block should NOT be wrapped in <p>");
     }
@@ -1454,7 +1459,7 @@ $$\n\
     fn test_full_demo_md_for_code_wrap() {
         let content = std::fs::read_to_string("../demo.md")
             .expect("Could not read demo.md");
-        let html = render_markdown(content.clone());
+        let html = render_markdown(content.clone(), None);
 
         // Complexity formula must NOT be wrapped in <code>
         assert!(
@@ -1508,7 +1513,7 @@ $$\n\
     #[test]
     fn test_abbr_defs_hidden_from_output() {
         let input = "*[HTML]: HyperText Markup Language\n\nHTML is a markup language.\n".to_string();
-        let html = render_markdown(input);
+        let html = render_markdown(input, None);
         assert!(!html.contains("*[HTML]:"), "Abbr definition lines should be hidden from output");
         assert!(html.contains("id=\"abbr-data\""), "Abbr data div should be embedded in output");
         assert!(html.contains("HTML is a markup language"), "Regular text should still appear in output");
@@ -1522,7 +1527,7 @@ $$\n\
         let abbrs = extract_abbreviations(&content);
         assert!(abbrs.iter().any(|(t, _)| t == "HTML"), "Line parser extracts all *[TERM]: lines");
         assert!(abbrs.iter().any(|(t, _)| t == "CSS"), "Legitimate abbreviation should also be extracted");
-        let html = render_markdown(content);
+        let html = render_markdown(content, None);
         // Code block content IS preserved verbatim (including *[HTML]: text)
         // The real abbreviation definition *[CSS]: should be hidden
         // Data div should be embedded

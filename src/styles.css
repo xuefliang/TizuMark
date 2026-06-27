@@ -938,6 +938,16 @@ body.is-resizing .preview-pane {
 
 .preview-content .footnote-definition p { margin-bottom: 4px; }
 
+.preview-content .footnote-definition.footnote-flash,
+.preview-content .footnote-reference.footnote-flash {
+  animation: footnote-highlight 1.2s ease-out;
+}
+
+@keyframes footnote-highlight {
+  0%   { background-color: rgba(255, 200, 60, 0.45); }
+  100% { background-color: transparent; }
+}
+
 .preview-content sup a {
   color: var(--accent-color);
   font-weight: 600;

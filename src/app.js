@@ -584,6 +584,7 @@ class MarkdownEditor {
       defaultView: 'preview',
       scrollSync: true,
       language: 'zh',
+      enableAbbr: true,
     };
     try {
       const saved = JSON.parse(localStorage.getItem('tizumark-settings'));
@@ -674,6 +675,12 @@ class MarkdownEditor {
     document.getElementById('set-scroll-sync').addEventListener('change', (e) => {
       this.settings.scrollSync = e.target.checked;
       this.saveSettings();
+    });
+    document.getElementById('set-enable-abbr').checked = s.enableAbbr !== false;
+    document.getElementById('set-enable-abbr').addEventListener('change', (e) => {
+      this.settings.enableAbbr = e.target.checked;
+      this.saveSettings();
+      if (this.activeTab) this.updatePreview();
     });
     document.getElementById('set-language').addEventListener('change', (e) => {
       this.settings.language = e.target.value;
@@ -2140,7 +2147,7 @@ class MarkdownEditor {
       });
       if (!path) return;
 
-      const htmlContent = await invoke('render_markdown', { content: this.activeTab.content });
+      const htmlContent = await invoke('render_markdown', { content: this.activeTab.content, enableAbbr: this.settings.enableAbbr !== false });
       const escapedTitle = this.activeTab.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       const fullHTML = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -2275,7 +2282,7 @@ ${htmlContent}
         tocHtml = await invoke('generate_toc', { content });
       }
 
-      const html = await invoke('render_markdown', { content });
+      const html = await invoke('render_markdown', { content, enableAbbr: this.settings.enableAbbr !== false });
 
       let finalHtml = html;
       if (tocHtml) {
@@ -2297,6 +2304,7 @@ ${htmlContent}
       try { this.processMath(); } catch (e) { console.warn('[preview] Math error:', e); }
       try { this.processAbbreviations(); } catch (e) { console.warn('[preview] Abbr error:', e); }
       try { this.processHeadings(); } catch (e) { console.warn('[preview] Headings error:', e); }
+      try { this.processFootnotes(); } catch (e) { console.warn('[preview] Footnotes error:', e); }
       try { await this.processMermaid(); } catch (e) { console.warn('[preview] Mermaid error:', e); }
       try { this.addCopyButtons(); } catch (e) { console.warn('[preview] Copy btn error:', e); }
 
@@ -2392,6 +2400,7 @@ ${htmlContent}
   // Abbreviation definitions (*[TERM]: definition) are parsed by the Rust
   // backend and embedded as a hidden <div id="abbr-data" data-abbrs="[...]">.
   processAbbreviations() {
+    if (this.settings.enableAbbr === false) return;
     const dataDiv = this.preview.querySelector('#abbr-data');
     if (!dataDiv) return;
     try {
@@ -2498,6 +2507,35 @@ ${htmlContent}
         idCount[id] = 1;
         heading.id = id;
       }
+    });
+  }
+
+  processFootnotes() {
+    // Intercept footnote reference clicks to scroll the definition to viewport center
+    this.preview.querySelectorAll('.footnote-reference a[href^="#"]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const id = link.getAttribute('href').substring(1);
+        const def = this.preview.querySelector(`.footnote-definition[id="${CSS.escape(id)}"]`);
+        if (def) {
+          def.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          def.classList.add('footnote-flash');
+          setTimeout(() => def.classList.remove('footnote-flash'), 1300);
+        }
+      });
+    });
+    // Intercept footnote backlink clicks to scroll the reference to viewport center
+    this.preview.querySelectorAll('.footnote-definition a[href^="#"]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const id = link.getAttribute('href').substring(1);
+        const ref = this.preview.querySelector(`[id="${CSS.escape(id)}"]`);
+        if (ref) {
+          ref.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          ref.classList.add('footnote-flash');
+          setTimeout(() => ref.classList.remove('footnote-flash'), 1300);
+        }
+      });
     });
   }
 
