@@ -1385,3 +1385,11 @@ $$\n\
         let html = render_markdown(input);
         assert!(html.contains("&amp;"), "Plain & should be escaped");
     }
+
+    #[test]
+    fn test_math_before_alert() {
+        let input = "如果你在写技术文档，可以自然地插入数学公式：\n\n$$\nO(1) < O(\\log n) < O(n) < O(n \\log n) < O(n^2) < O(2^n)\n$$\n\n> [!TIP]\n> **写作建议**：好的技术文档是\"分层\"的——正文讲核心逻辑，脚注补充细节，引用块标注出处，提示框强调要点。";
+        let html = render_markdown(input.to_string());
+        assert!(html.contains("$$"), "Math $$ should be preserved");
+        assert!(!html.contains("<p>$$"), "Math block should NOT be wrapped in <p>");
+    }

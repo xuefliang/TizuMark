@@ -2390,7 +2390,28 @@ ${htmlContent}
   // Render both display math ($$...$$) and inline math ($...$ / \(...\))
   // using KaTeX's built-in auto-render, which correctly handles all edge cases.
   processMath() {
-    if (typeof renderMathInElement === 'undefined') return;
+    if (typeof renderMathInElement === 'undefined') {
+      console.warn('[math] renderMathInElement not loaded');
+      return;
+    }
+
+    // Debug: dump all text nodes containing $$ to diagnose position-specific issues
+    const walker = document.createTreeWalker(this.preview, NodeFilter.SHOW_TEXT, null, false);
+    const dumpNodes = [];
+    let n;
+    while (n = walker.nextNode()) {
+      if (n.textContent.includes('$$')) {
+        const parent = n.parentElement;
+        dumpNodes.push({
+          tag: parent ? parent.tagName : 'null',
+          className: parent ? (parent.className || '') : '',
+          id: parent ? (parent.id || '') : '',
+          preview: n.textContent.substring(0, 80)
+        });
+      }
+    }
+    console.log('[math] Text nodes containing $$:', dumpNodes.length, dumpNodes);
+
     try {
       renderMathInElement(this.preview, {
         delimiters: [
