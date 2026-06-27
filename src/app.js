@@ -2394,11 +2394,16 @@ ${htmlContent}
   // The Rust backend HTML-escapes & to &amp; in math blocks, which the
   // browser correctly decodes back to & in text nodes before we process.
   processDisplayMath() {
-    if (typeof katex === 'undefined') return;
+    if (typeof katex === 'undefined') {
+      console.warn('[math] katex not loaded, skipping display math');
+      return;
+    }
     const walker = document.createTreeWalker(this.preview, NodeFilter.SHOW_TEXT, null, false);
     const textNodes = [];
     let node;
     while (node = walker.nextNode()) textNodes.push(node);
+
+    console.log('[math] TreeWalker found', textNodes.length, 'text nodes');
 
     let count = 0;
     textNodes.forEach(textNode => {
@@ -2413,14 +2418,25 @@ ${htmlContent}
       const trimmed = text.trim();
       if (!trimmed.startsWith('$$')) return;
 
+      console.log('[math] Found $$ text node, parent:', parent ? parent.tagName : 'null', 'text preview:', trimmed.substring(0, 60));
+
       const match = trimmed.match(/^\$\$([\s\S]*?)\$\$\s*$/);
-      if (!match) return;
+      if (!match) {
+        console.warn('[math] Regex did not match, trimmed:', trimmed.substring(0, 100));
+        return;
+      }
 
       const latex = match[1].trim();
-      if (!latex) return;
+      if (!latex) {
+        console.warn('[math] Empty latex after trim');
+        return;
+      }
+
+      console.log('[math] Extracted latex:', latex.substring(0, 80));
 
       try {
         const rendered = katex.renderToString(latex, { displayMode: true, throwOnError: false });
+        console.log('[math] KaTeX rendered, length:', rendered.length);
         const container = document.createElement('span');
         container.innerHTML = rendered;
         textNode.replaceWith(container);
@@ -2430,9 +2446,7 @@ ${htmlContent}
       }
     });
 
-    if (count > 0) {
-      console.log('[math] Rendered', count, 'display math block(s) via TreeWalker');
-    }
+    console.log('[math] Rendered', count, 'display math block(s) via TreeWalker');
   }
 
   // Render inline math ($...$ and \\(...\\)) via KaTeX auto-render.
