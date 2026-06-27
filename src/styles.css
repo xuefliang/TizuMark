@@ -13,22 +13,16 @@
 }
 
 /* ========== 字体方案 ========== */
-/* data-font-scheme 控制：system-sans | reading-sans | classic-serif */
+/* data-font-scheme 控制：system-sans | classic-serif */
 
-/* 系统无衬线（默认） */
+/* 默认字体 */
 [data-font-scheme="system-sans"],
 :root {
   --font-mono: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace;
   --font-preview: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* 阅读无衬线 */
-[data-font-scheme="reading-sans"] {
-  --font-mono: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace;
-  --font-preview: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-
-/* 经典衬线 */
+/* 印刷风格 */
 [data-font-scheme="classic-serif"] {
   --font-mono: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace;
   --font-preview: "IBM Plex Serif", Georgia, "Times New Roman", "Songti SC", serif;

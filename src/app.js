@@ -139,9 +139,8 @@ const I18N = {
     themeSwitched: '已切换到{theme}主题',
     basic: '基本',
     fontScheme: '字体方案',
-    fontSchemeSystemSans: '系统无衬线',
-    fontSchemeReadingSans: '阅读无衬线',
-    fontSchemeClassicSerif: '经典衬线',
+    fontSchemeSystemSans: '简约风格',
+    fontSchemeClassicSerif: '印刷风格',
     scrollTop: 'TOP',
     collapseEditor: '折叠编辑器',
     collapsePreview: '折叠预览',
@@ -325,9 +324,8 @@ const I18N = {
     themeSwitched: 'Switched to {theme} theme',
     basic: 'Basic',
     fontScheme: 'Font Scheme',
-    fontSchemeSystemSans: 'System Sans',
-    fontSchemeReadingSans: 'Reading Sans',
-    fontSchemeClassicSerif: 'Classic Serif',
+    fontSchemeSystemSans: 'Minimalist',
+    fontSchemeClassicSerif: 'Print Style',
     scrollTop: 'TOP',
     collapseEditor: 'Collapse Editor',
     collapsePreview: 'Collapse Preview',
@@ -590,8 +588,7 @@ class MarkdownEditor {
     const fsSelect = document.getElementById('set-font-scheme');
     if (fsSelect) {
       fsSelect.options[0].text = t('fontSchemeSystemSans');
-      fsSelect.options[1].text = t('fontSchemeReadingSans');
-      fsSelect.options[2].text = t('fontSchemeClassicSerif');
+      fsSelect.options[1].text = t('fontSchemeClassicSerif');
     }
 
     // Update tab bar
@@ -656,7 +653,7 @@ class MarkdownEditor {
       maxWidth: 0,
       themeMode: 'light',
       colorScheme: 'default',
-      fontScheme: 'system-sans',
+      fontScheme: 'classic-serif',
       defaultView: 'preview',
       scrollSync: true,
       language: 'zh',
@@ -667,9 +664,9 @@ class MarkdownEditor {
       if (saved && saved.fontScheme === undefined) {
         const colorSchemeFontMap = {
           default: 'system-sans',
-          forest: 'reading-sans',
+          forest: 'system-sans',
           nord: 'system-sans',
-          dusk: 'reading-sans',
+          dusk: 'system-sans',
           sunset: 'classic-serif',
         };
         saved.fontScheme = colorSchemeFontMap[saved.colorScheme] || 'system-sans';
@@ -1020,7 +1017,7 @@ class MarkdownEditor {
       maxWidth: 0,
       themeMode: 'light',
       colorScheme: 'default',
-      fontScheme: 'system-sans',
+      fontScheme: 'classic-serif',
       defaultView: 'preview',
       scrollSync: true,
       language: 'zh',
@@ -1303,10 +1300,24 @@ class MarkdownEditor {
       if (container.classList.contains('preview-collapsed') || container.classList.contains('preview-mode')) return;
       this.syncingScroll = true;
 
-      const editorMax = info.height - info.clientHeight || 1;
-      const scrollPercent = Math.min(info.top / editorMax, 1);
-      const previewMax = this.preview.scrollHeight - this.preview.clientHeight;
-      this.preview.scrollTop = scrollPercent * previewMax;
+      // 基于字符位置的滚动同步：找到编辑器视口中央的字符位置，映射到预览
+      const viewportCenter = info.top + info.clientHeight / 2;
+      const centerLine = this.cm.lineAtHeight(viewportCenter);
+      const content = this.activeTab.content;
+      const lines = content.split('\n');
+      let charPos = 0;
+      for (let i = 0; i < centerLine && i < lines.length; i++) {
+        charPos += lines[i].length + 1;
+      }
+      if (centerLine < lines.length) {
+        const lineCoords = this.cm.charCoords({ line: centerLine, ch: 0 }, 'local');
+        const lineH = (lineCoords.bottom - lineCoords.top) || 1;
+        const inLineFrac = Math.max(0, Math.min(1, (viewportCenter - lineCoords.top) / lineH));
+        charPos += lines[centerLine].length * inLineFrac;
+      }
+      const charFraction = content.length > 0 ? Math.min(charPos / content.length, 1) : 0;
+      const previewMax = Math.max(this.preview.scrollHeight - this.preview.clientHeight, 0);
+      this.preview.scrollTop = charFraction * previewMax;
 
       requestAnimationFrame(() => { this.syncingScroll = false; });
     });
@@ -1317,11 +1328,25 @@ class MarkdownEditor {
       if (container.classList.contains('preview-collapsed') || container.classList.contains('preview-mode')) return;
       this.syncingScroll = true;
 
-      const previewMax = this.preview.scrollHeight - this.preview.clientHeight || 1;
-      const scrollPercent = Math.min(this.preview.scrollTop / previewMax, 1);
-      const info = this.cm.getScrollInfo();
-      const editorMax = info.height - info.clientHeight;
-      this.cm.scrollTo(0, scrollPercent * editorMax);
+      // 基于字符位置的滚动同步：预览滚动分数 → 编辑器对应行居中
+      const previewMax = Math.max(this.preview.scrollHeight - this.preview.clientHeight, 1);
+      const scrollFraction = Math.min(this.preview.scrollTop / previewMax, 1);
+      const content = this.activeTab.content;
+      const lines = content.split('\n');
+      const targetCharPos = scrollFraction * content.length;
+      let runningPos = 0;
+      for (let i = 0; i < lines.length; i++) {
+        const lineLen = lines[i].length + 1;
+        if (runningPos + lineLen > targetCharPos || i === lines.length - 1) {
+          const scrollInfo = this.cm.getScrollInfo();
+          const lineCoords = this.cm.charCoords({ line: i, ch: 0 }, 'local');
+          const lineH = (lineCoords.bottom - lineCoords.top) || 1;
+          const targetScroll = lineCoords.top - scrollInfo.clientHeight / 2 + lineH / 2;
+          this.cm.scrollTo(0, Math.max(0, targetScroll));
+          break;
+        }
+        runningPos += lineLen;
+      }
 
       requestAnimationFrame(() => { this.syncingScroll = false; });
     });
@@ -2517,11 +2542,24 @@ ${htmlContent}
 
       // Set scroll position after all async content loads (images/mermaid may change height)
       if (this.settings.scrollSync) {
+        const content = this.activeTab.content;
+        const lines = content.split('\n');
         const info = this.cm.getScrollInfo();
-        const editorMax = info.height - info.clientHeight || 1;
-        const scrollPercent = Math.min(info.top / editorMax, 1);
+        const viewportCenter = info.top + info.clientHeight / 2;
+        const centerLine = this.cm.lineAtHeight(viewportCenter);
+        let charPos = 0;
+        for (let i = 0; i < centerLine && i < lines.length; i++) {
+          charPos += lines[i].length + 1;
+        }
+        if (centerLine < lines.length) {
+          const lineCoords = this.cm.charCoords({ line: centerLine, ch: 0 }, 'local');
+          const lineH = (lineCoords.bottom - lineCoords.top) || 1;
+          const inLineFrac = Math.max(0, Math.min(1, (viewportCenter - lineCoords.top) / lineH));
+          charPos += lines[centerLine].length * inLineFrac;
+        }
+        const charFraction = content.length > 0 ? Math.min(charPos / content.length, 1) : 0;
         const previewMax = Math.max(this.preview.scrollHeight - this.preview.clientHeight, 0);
-        this.preview.scrollTop = scrollPercent * previewMax;
+        this.preview.scrollTop = charFraction * previewMax;
       } else {
         const maxScroll = Math.max(this.preview.scrollHeight - this.preview.clientHeight, 0);
         if (this.preview.scrollTop > maxScroll) this.preview.scrollTop = maxScroll;
