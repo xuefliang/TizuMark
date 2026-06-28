@@ -1587,11 +1587,6 @@ class MarkdownEditor {
     window.addEventListener('resize', () => {
       this.updateMaximizeIcon();
       this.updateSideButtons();
-      // 拖过分栏线后 flex 被设为 none，窗口缩放时需按比例重新计算
-      const editorPane = document.getElementById('editor-pane');
-      if (editorPane && editorPane.style.flex === 'none' && this._editorPercent) {
-        this.applyResizerRatio();
-      }
     });
 
     document.addEventListener('keydown', async (e) => {
@@ -1649,11 +1644,12 @@ class MarkdownEditor {
       const totalContentWidth = container.offsetWidth - outlineWidth - resizerWidth;
       const editorPercent = (newEditorWidth / totalContentWidth) * 100;
       if (editorPercent > 20 && editorPercent < 80) {
-        const previewWidth = totalContentWidth - newEditorWidth;
-        editorPane.style.width = newEditorWidth + 'px';
-        previewPane.style.width = previewWidth + 'px';
-        editorPane.style.flex = 'none';
-        previewPane.style.flex = 'none';
+        const editorRatio = editorPercent / 100;
+        const previewRatio = 1 - editorRatio;
+        editorPane.style.flex = editorRatio.toFixed(4) + ' 0 0px';
+        previewPane.style.flex = previewRatio.toFixed(4) + ' 0 0px';
+        editorPane.style.width = '';
+        previewPane.style.width = '';
         this._editorPercent = editorPercent;
         this.cm.refresh();
         this.updateSideButtons();
@@ -1676,25 +1672,6 @@ class MarkdownEditor {
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
-  }
-
-  // 窗口缩放时按保存的比例重新计算分栏宽度
-  applyResizerRatio() {
-    const container = document.querySelector('.editor-container');
-    const editorPane = document.getElementById('editor-pane');
-    const previewPane = document.getElementById('preview-pane');
-    const outlineSidebar = document.getElementById('outline-sidebar');
-    const resizer = document.getElementById('resizer');
-    const outlineWidth = outlineSidebar.classList.contains('hidden') ? 0 : outlineSidebar.offsetWidth;
-    const resizerWidth = resizer.offsetWidth;
-    const totalContentWidth = container.offsetWidth - outlineWidth - resizerWidth;
-    const newEditorWidth = (this._editorPercent / 100) * totalContentWidth;
-    const previewWidth = totalContentWidth - newEditorWidth;
-    editorPane.style.width = newEditorWidth + 'px';
-    previewPane.style.width = previewWidth + 'px';
-    editorPane.style.flex = 'none';
-    previewPane.style.flex = 'none';
-    this.cm && this.cm.refresh();
   }
 
   initFindReplace() {
