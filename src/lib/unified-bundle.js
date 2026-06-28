@@ -23781,16 +23781,16 @@ var UnifiedRenderer = (() => {
                 continue;
               }
             }
-            if (btCount === 2) {
-              inDoubleBacktick = !inDoubleBacktick;
-              result += "``";
-              i += 2;
-              continue;
-            }
           }
           if (inCodeBlock) {
             result += content3[i];
             i++;
+            continue;
+          }
+          if (content3[i] === "`" && content3[i + 1] === "`" && (i + 2 >= len || content3[i + 2] !== "`")) {
+            inDoubleBacktick = !inDoubleBacktick;
+            result += "``";
+            i += 2;
             continue;
           }
           const inAnyCode = inBacktick || inDoubleBacktick;
@@ -23824,8 +23824,15 @@ var UnifiedRenderer = (() => {
             i++;
             continue;
           }
-          if (!inBacktick && content3[i] === "$" && i + 1 < len && content3[i + 1] === "$") {
+          if (content3[i] === "$" && i + 1 < len && content3[i + 1] === "$") {
+            const atLineStart = i === 0 || content3[i - 1] === "\n" || content3[i - 1] === "\r";
+            if (!atLineStart) {
+              result += content3[i];
+              i++;
+              continue;
+            }
             const start = i;
+            const lineNum = content3.substring(0, start).split("\n").length;
             i += 2;
             let foundEnd = false;
             while (i + 1 < len) {
@@ -23833,8 +23840,8 @@ var UnifiedRenderer = (() => {
                 i += 2;
                 const mathBlock = content3.substring(start, i);
                 const idx = placeholders.length;
-                placeholders.push(mathBlock);
-                result += "<!--MATHBLOCK_" + idx + "-->";
+                placeholders.push({ text: mathBlock, line: lineNum, display: true });
+                result += '<div class="math-placeholder" data-math-idx="' + idx + '" data-source-line="' + lineNum + '"></div>';
                 foundEnd = true;
                 break;
               }
@@ -23852,7 +23859,7 @@ var UnifiedRenderer = (() => {
                 i += 1;
                 const mathBlock = content3.substring(start, i);
                 const idx = placeholders.length;
-                placeholders.push(mathBlock);
+                placeholders.push({ text: mathBlock, display: false });
                 result += "<!--MATHBLOCK_" + idx + "-->";
                 foundEnd = true;
                 break;
@@ -23999,9 +24006,17 @@ var UnifiedRenderer = (() => {
       function restoreMathBlocks(html7, placeholders) {
         let result = html7;
         for (let idx = 0; idx < placeholders.length; idx++) {
-          const marker = "<!--MATHBLOCK_" + idx + "-->";
-          const escaped = escapeHTML(placeholders[idx]);
-          result = result.split(marker).join(escaped);
+          const ph = placeholders[idx];
+          const text9 = typeof ph === "string" ? ph : ph.text;
+          const escaped = escapeHTML(text9);
+          if (ph.display) {
+            const marker = '<div class="math-placeholder" data-math-idx="' + idx + '" data-source-line="' + ph.line + '"></div>';
+            const wrapped = '<span class="math-display" data-source-line="' + ph.line + '">' + escaped + "</span>";
+            result = result.split(marker).join(wrapped);
+          } else {
+            const marker = "<!--MATHBLOCK_" + idx + "-->";
+            result = result.split(marker).join(escaped);
+          }
         }
         return result;
       }

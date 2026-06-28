@@ -2576,23 +2576,31 @@ ${htmlContent}
   }
 
   // 每次滚动时动态构建平行位置数组（使用 unified 的 data-source-line 精确映射）
+  // 遍历所有带 data-source-line 的元素（不仅仅是直接子元素），确保表格/引用块/Mermaid 等
+  // 嵌套结构内部的元素也被纳入位置映射，大幅提升滚动同步精度
   _computedPosition() {
-    const previewChildren = Array.from(this.preview.children).filter(el => el.nodeType === 1);
-    this._editorElementList = [];
-    this._previewElementList = [];
+    const allElements = this.preview.querySelectorAll('[data-source-line]');
+    const entries = [];
+    const seenLines = new Set();
 
-    for (let i = 0; i < previewChildren.length; i++) {
-      const child = previewChildren[i];
-      const sourceLine = this._getSourceLine(child);
-      if (sourceLine === null) continue;
+    for (const el of allElements) {
+      const sourceLine = parseInt(el.dataset.sourceLine, 10);
+      if (isNaN(sourceLine)) continue;
+      if (seenLines.has(sourceLine)) continue;
+      seenLines.add(sourceLine);
 
-      // 编辑器位置：heightAtLine(line-1) = 该行顶部的像素位置
       const editorTop = this.cm.heightAtLine(Math.max(0, sourceLine - 1), 'local');
-      this._editorElementList.push(editorTop);
-
-      // 预览位置：子元素相对于预览容器的 offsetTop
-      this._previewElementList.push(this._getOffsetTop(child));
+      entries.push({
+        line: sourceLine,
+        editorTop,
+        previewTop: this._getOffsetTop(el)
+      });
     }
+
+    entries.sort((a, b) => a.line - b.line);
+
+    this._editorElementList = entries.map(e => e.editorTop);
+    this._previewElementList = entries.map(e => e.previewTop);
   }
 
   // 根据 unified 渲染结果重建滚动同步数据（仅在内容变化时调用）
@@ -2604,16 +2612,18 @@ ${htmlContent}
     this._computedPosition();
 
     // 生成 _linePositions（兼容 updatePreview 滚动恢复）
-    const previewChildren = Array.from(this.preview.children).filter(el => el.nodeType === 1);
+    const allElements = this.preview.querySelectorAll('[data-source-line]');
     const previewRect = this.preview.getBoundingClientRect();
     const st = this.preview.scrollTop;
     const sh = this.preview.scrollHeight || 1;
     const positions = [{ line: 0, fraction: 0 }];
+    const seen = new Set();
 
-    for (let i = 0; i < previewChildren.length; i++) {
-      const child = previewChildren[i];
-      const sourceLine = this._getSourceLine(child);
-      if (sourceLine === null) continue;
+    for (const child of allElements) {
+      const sourceLine = parseInt(child.dataset.sourceLine, 10);
+      if (isNaN(sourceLine)) continue;
+      if (seen.has(sourceLine)) continue;
+      seen.add(sourceLine);
 
       const rect = child.getBoundingClientRect();
       const elTop = rect.top - previewRect.top + st;
@@ -2679,9 +2689,9 @@ ${htmlContent}
     this._canScroll.preview = true;
   }
 
-  // 编辑器 → 预览同步（文章方法：每次滚动重建数组 + 比例公式）
+  // 编辑器 → 预览同步（优化版：使用更精确的插值算法）
   _syncEditorToPreview() {
-    // 每次滚动时重新计算位置数组（文章核心做法）
+    // 每次滚动时重新计算位置数组
     this._computedPosition();
 
     const { scrollHeight, clientHeight } = this.preview;
@@ -2708,7 +2718,7 @@ ${htmlContent}
       }
     }
     if (scrollElementIndex < 0) {
-      scrollElementIndex = this._editorElementList.length - 1;
+      scrollElementIndex = 0;
     }
     if (scrollElementIndex < 0) return;
     if (scrollElementIndex >= this._editorElementList.length - 1) {
@@ -2716,12 +2726,24 @@ ${htmlContent}
       return;
     }
 
-    // 文章比例公式
-    const ratio = (top - this._editorElementList[scrollElementIndex]) /
-      (this._editorElementList[scrollElementIndex + 1] - this._editorElementList[scrollElementIndex]);
-    this.preview.scrollTop = ratio *
-      (this._previewElementList[scrollElementIndex + 1] - this._previewElementList[scrollElementIndex]) +
-      this._previewElementList[scrollElementIndex];
+    // 使用更精确的插值算法
+    const editorStart = this._editorElementList[scrollElementIndex];
+    const editorEnd = this._editorElementList[scrollElementIndex + 1];
+    const previewStart = this._previewElementList[scrollElementIndex];
+    const previewEnd = this._previewElementList[scrollElementIndex + 1];
+
+    // 避免除零错误
+    if (editorEnd === editorStart) {
+      this.preview.scrollTop = previewStart;
+      return;
+    }
+
+    // 计算比例并应用
+    const ratio = (top - editorStart) / (editorEnd - editorStart);
+    const targetScrollTop = previewStart + ratio * (previewEnd - previewStart);
+
+    // 确保滚动位置在有效范围内
+    this.preview.scrollTop = Math.max(0, Math.min(targetScrollTop, scrollHeight - clientHeight));
   }
 
   // 预览 → 编辑器同步（文章方法：每次滚动重建数组 + 比例公式）
@@ -2868,7 +2890,7 @@ ${htmlContent}
 
       let finalHtml = html;
       if (tocHtml) {
-        finalHtml = finalHtml.replace(/<p>\[TOC\]<\/p>|<p>\[toc\]<\/p>/gi, tocHtml);
+        finalHtml = finalHtml.replace(/<p[^>]*>\[TOC\]<\/p>|<p[^>]*>\[toc\]<\/p>/gi, tocHtml);
       }
 
       this._canScroll.editor = false;

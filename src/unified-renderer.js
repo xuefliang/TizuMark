@@ -45,7 +45,7 @@ function guardMathBlocks(content) {
   let inCodeTag = false;
 
   while (i < len) {
-    // Track fenced code blocks and double-backtick code spans
+    // Track fenced code blocks (3+ backticks)
     if (content[i] === '`') {
       let btCount = 1;
       while (i + btCount < len && content[i + btCount] === '`') btCount++;
@@ -63,18 +63,20 @@ function guardMathBlocks(content) {
           continue;
         }
       }
-      // Double backtick code span: ``...`` — toggle as a unit, not per-backtick
-      if (btCount === 2) {
-        inDoubleBacktick = !inDoubleBacktick;
-        result += '``';
-        i += 2;
-        continue;
-      }
     }
 
+    // Inside fenced code block: skip all processing (including double-backtick)
     if (inCodeBlock) {
       result += content[i];
       i++;
+      continue;
+    }
+
+    // Double backtick code span: ``...`` — toggle as a unit, not per-backtick
+    if (content[i] === '`' && content[i + 1] === '`' && (i + 2 >= len || content[i + 2] !== '`')) {
+      inDoubleBacktick = !inDoubleBacktick;
+      result += '``';
+      i += 2;
       continue;
     }
 
@@ -116,9 +118,17 @@ function guardMathBlocks(content) {
       continue;
     }
 
-    if (!inBacktick && content[i] === '$' && i + 1 < len && content[i + 1] === '$') {
-      // Display math: $$...$$
+    if (content[i] === '$' && i + 1 < len && content[i + 1] === '$') {
+      // Display math: $$...$$ — 用行首检测，不依赖脆弱的反引号状态机
+      const atLineStart = i === 0 || content[i - 1] === '\n' || content[i - 1] === '\r';
+      if (!atLineStart) {
+        result += content[i];
+        i++;
+        continue;
+      }
       const start = i;
+      // 计算起始行号（\n 数量 + 1）
+      const lineNum = content.substring(0, start).split('\n').length;
       i += 2;
       let foundEnd = false;
       while (i + 1 < len) {
@@ -126,8 +136,9 @@ function guardMathBlocks(content) {
           i += 2;
           const mathBlock = content.substring(start, i);
           const idx = placeholders.length;
-          placeholders.push(mathBlock);
-          result += '<!--MATHBLOCK_' + idx + '-->';
+          placeholders.push({ text: mathBlock, line: lineNum, display: true });
+          // 用块级 div 作为占位符，避免被 unified 包裹进 <p>
+          result += '<div class="math-placeholder" data-math-idx="' + idx + '" data-source-line="' + lineNum + '"></div>';
           foundEnd = true;
           break;
         }
@@ -146,7 +157,7 @@ function guardMathBlocks(content) {
           i += 1;
           const mathBlock = content.substring(start, i);
           const idx = placeholders.length;
-          placeholders.push(mathBlock);
+          placeholders.push({ text: mathBlock, display: false });
           result += '<!--MATHBLOCK_' + idx + '-->';
           foundEnd = true;
           break;
@@ -319,10 +330,19 @@ function escapeHTML(s) {
 function restoreMathBlocks(html, placeholders) {
   let result = html;
   for (let idx = 0; idx < placeholders.length; idx++) {
-    const marker = '<!--MATHBLOCK_' + idx + '-->';
-    const escaped = escapeHTML(placeholders[idx]);
-    // 使用 split/join 而非 replace()，避免 replace 将 $$ 解释为特殊替换模式
-    result = result.split(marker).join(escaped);
+    const ph = placeholders[idx];
+    const text = typeof ph === 'string' ? ph : ph.text;
+    const escaped = escapeHTML(text);
+    if (ph.display) {
+      // 显示数学：占位符是 <div class="math-placeholder" data-math-idx="N" ...>，替换为带 data-source-line 的 span
+      const marker = '<div class="math-placeholder" data-math-idx="' + idx + '" data-source-line="' + ph.line + '"></div>';
+      const wrapped = '<span class="math-display" data-source-line="' + ph.line + '">' + escaped + '</span>';
+      result = result.split(marker).join(wrapped);
+    } else {
+      // 行内数学：占位符是 <!--MATHBLOCK_N-->，直接恢复
+      const marker = '<!--MATHBLOCK_' + idx + '-->';
+      result = result.split(marker).join(escaped);
+    }
   }
   return result;
 }
