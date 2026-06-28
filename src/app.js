@@ -2344,7 +2344,7 @@ class MarkdownEditor {
       });
       if (!path) return;
 
-      const htmlContent = await invoke('render_markdown', { content: this.activeTab.content });
+      const htmlContent = UnifiedRenderer.renderMarkdown(this.activeTab.content);
       const escapedTitle = this.activeTab.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       const fullHTML = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -2563,138 +2563,31 @@ ${htmlContent}
       .trim();
   }
 
-  // 用文字内容匹配建立预览元素与源码行的一一对应（demo 思路：通过内容匹配）
-  // 将 markdown 源码拆分成块级元素（与 pulldown-cmark 渲染输出的预览子元素一一对应）
-  _splitIntoBlocks(content) {
-    const lines = content.split('\n');
-    const blocks = [];
-    let i = 0;
-
-    while (i < lines.length) {
-      const line = lines[i];
-
-      // 跳过空行
-      if (!line.trim()) { i++; continue; }
-
-      const block = { startLine: i, endLine: i, type: 'paragraph' };
-
-      // HTML 注释：不生成预览元素，跳过
-      if (/^<!--/.test(line)) {
-        while (i < lines.length && !/-->/.test(lines[i])) { i++; }
-        i++;
-        continue;
-      }
-
-      // 标题
-      if (/^#{1,6}\s/.test(line)) {
-        block.type = 'heading';
-        blocks.push(block);
-        i++;
-        continue;
-      }
-
-      // 水平分割线
-      if (/^[-*_]{3,}\s*$/.test(line)) {
-        block.type = 'hr';
-        blocks.push(block);
-        i++;
-        continue;
-      }
-
-      // 代码块
-      if (/^```/.test(line) || /^~~~/.test(line)) {
-        block.type = 'code';
-        i++; // 跳过开始标记
-        while (i < lines.length) {
-          if (/^```/.test(lines[i]) || /^~~~/.test(lines[i])) {
-            block.endLine = i;
-            i++;
-            break;
-          }
-          i++;
-        }
-        blocks.push(block);
-        continue;
-      }
-
-      // 表格
-      if (/^\|.*\|/.test(line)) {
-        block.type = 'table';
-        while (i < lines.length && /^\|.*\|/.test(lines[i])) {
-          block.endLine = i;
-          i++;
-        }
-        blocks.push(block);
-        continue;
-      }
-
-      // 引用块
-      if (/^>\s/.test(line)) {
-        block.type = 'blockquote';
-        while (i < lines.length && /^>\s/.test(lines[i])) {
-          block.endLine = i;
-          i++;
-        }
-        blocks.push(block);
-        continue;
-      }
-
-      // 无序列表
-      if (/^[-*]\s/.test(line)) {
-        block.type = 'list';
-        while (i < lines.length && /^[-*]\s/.test(lines[i])) {
-          block.endLine = i;
-          i++;
-        }
-        blocks.push(block);
-        continue;
-      }
-
-      // 有序列表
-      if (/^\d+\.\s/.test(line)) {
-        block.type = 'orderedList';
-        while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
-          block.endLine = i;
-          i++;
-        }
-        blocks.push(block);
-        continue;
-      }
-
-      // 普通段落（持续到遇到下一个块级标记或空行）
-      while (i < lines.length && lines[i].trim() &&
-        !/^#{1,6}\s/.test(lines[i]) &&
-        !/^[-*_]{3,}\s*$/.test(lines[i]) &&
-        !/^```/.test(lines[i]) && !/^~~~/.test(lines[i]) &&
-        !/^\|.*\|/.test(lines[i]) &&
-        !/^>\s/.test(lines[i]) &&
-        !/^[-*]\s/.test(lines[i]) &&
-        !/^\d+\.\s/.test(lines[i]) &&
-        !/^<!--/.test(lines[i])) {
-        block.endLine = i;
-        i++;
-      }
-      blocks.push(block);
+  // 从预览元素获取对应的源文件行号（通过 unified 嵌入的 data-source-line）
+  _getSourceLine(el) {
+    if (el.dataset && el.dataset.sourceLine) {
+      return parseInt(el.dataset.sourceLine, 10);
     }
-
-    return blocks;
+    const inner = el.querySelector('[data-source-line]');
+    if (inner) {
+      return parseInt(inner.dataset.sourceLine, 10);
+    }
+    return null;
   }
 
-  // 每次滚动时动态构建平行位置数组（文章方法：确保使用最新的 CM 行高数据）
+  // 每次滚动时动态构建平行位置数组（使用 unified 的 data-source-line 精确映射）
   _computedPosition() {
     const previewChildren = Array.from(this.preview.children).filter(el => el.nodeType === 1);
-    const count = Math.min(this._sourceBlocks.length, previewChildren.length);
-
     this._editorElementList = [];
     this._previewElementList = [];
 
-    for (let i = 0; i < count; i++) {
-      const block = this._sourceBlocks[i];
+    for (let i = 0; i < previewChildren.length; i++) {
       const child = previewChildren[i];
+      const sourceLine = this._getSourceLine(child);
+      if (sourceLine === null) continue;
 
-      // 编辑器位置：块起始行的顶部（heightAtLine 返回该行底部，减1得到上一行底部即本行顶部）
-      const lineForTop = Math.max(0, block.startLine - 1);
-      const editorTop = this.cm.heightAtLine(lineForTop, 'local');
+      // 编辑器位置：heightAtLine(line-1) = 该行顶部的像素位置
+      const editorTop = this.cm.heightAtLine(Math.max(0, sourceLine - 1), 'local');
       this._editorElementList.push(editorTop);
 
       // 预览位置：子元素相对于预览容器的 offsetTop
@@ -2702,41 +2595,45 @@ ${htmlContent}
     }
   }
 
-  // 根据文章方法初始化块数组（仅在内容变化时调用）
+  // 根据 unified 渲染结果重建滚动同步数据（仅在内容变化时调用）
   rebuildScrollSync() {
     const content = this.cm.getValue();
-    const lines = content.split('\n');
+    const totalLines = content.split('\n').length;
 
-    // 拆分源文件为块
-    this._sourceBlocks = this._splitIntoBlocks(content);
-
-    // 构建初始平行数组
-    const previewChildren = Array.from(this.preview.children).filter(el => el.nodeType === 1);
+    // 构建平行位置数组（使用 data-source-line）
     this._computedPosition();
 
     // 生成 _linePositions（兼容 updatePreview 滚动恢复）
-    const count = Math.min(this._sourceBlocks.length, previewChildren.length);
-    const totalLines = lines.length;
+    const previewChildren = Array.from(this.preview.children).filter(el => el.nodeType === 1);
     const previewRect = this.preview.getBoundingClientRect();
     const st = this.preview.scrollTop;
     const sh = this.preview.scrollHeight || 1;
     const positions = [{ line: 0, fraction: 0 }];
-    for (let i = 0; i < count; i++) {
-      const block = this._sourceBlocks[i];
-      const el = previewChildren[i];
-      const rect = el.getBoundingClientRect();
+
+    for (let i = 0; i < previewChildren.length; i++) {
+      const child = previewChildren[i];
+      const sourceLine = this._getSourceLine(child);
+      if (sourceLine === null) continue;
+
+      const rect = child.getBoundingClientRect();
       const elTop = rect.top - previewRect.top + st;
-      const elBottom = elTop + el.offsetHeight;
-      if (block.startLine < totalLines) {
-        positions.push({ line: block.startLine, fraction: Math.min(Math.max(elTop / sh, 0), 1) });
-        positions.push({ line: block.endLine, fraction: Math.min(Math.max(elBottom / sh, 0), 1) });
-      }
+      const elBottom = elTop + child.offsetHeight;
+
+      positions.push({ line: sourceLine, fraction: Math.min(Math.max(elTop / sh, 0), 1) });
+      positions.push({ line: sourceLine + 1, fraction: Math.min(Math.max(elBottom / sh, 0), 1) });
     }
+
     positions.push({ line: totalLines - 1, fraction: 1 });
     positions.sort((a, b) => a.line - b.line);
+
     const deduped = [];
     let lastLine = -1;
-    for (const p of positions) { if (p.line !== lastLine) { deduped.push(p); lastLine = p.line; } }
+    for (const p of positions) {
+      if (p.line !== lastLine) {
+        deduped.push(p);
+        lastLine = p.line;
+      }
+    }
     if (deduped.length === 0 || deduped[0].line > 0) deduped.unshift({ line: 0, fraction: 0 });
     if (deduped[deduped.length - 1].line < totalLines - 1) deduped.push({ line: totalLines - 1, fraction: 1 });
     this._linePositions = deduped;
@@ -2966,7 +2863,7 @@ ${htmlContent}
         if (gen !== this._renderGeneration) return;
       }
 
-      const html = await invoke('render_markdown', { content });
+      const html = UnifiedRenderer.renderMarkdown(content);
       if (gen !== this._renderGeneration) return;
 
       let finalHtml = html;

@@ -361,6 +361,7 @@ fn embed_abbr_data(html: &str, abbreviations: &[(String, String)]) -> String {
     format!("{html}<div id=\"abbr-data\" style=\"display:none\" data-abbrs='{safe_json}'></div>")
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 fn render_markdown(content: String) -> String {
     use pulldown_cmark::{Parser, Options, html};
@@ -1071,7 +1072,6 @@ pub fn run() {
             write_file,
             write_binary_file,
             fetch_image_as_base64,
-            render_markdown,
             generate_toc
         ])
         .run(tauri::generate_context!())
