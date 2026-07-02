@@ -9,7 +9,7 @@ async function dialogSave(options = {}) {
 }
 
 class Tab {
-  constructor(name = '未命名', content = '', filePath = null) {
+  constructor(name = '', content = '', filePath = null) {
     this.name = name;
     this.content = content;
     this.savedContent = content;
@@ -76,7 +76,7 @@ const I18N = {
     words: '字数',
     chars: '字符',
     lines: '行数',
-    untitled: '未命名',
+    untitled: 'Untitled',
     noHeadings: '暂无标题',
     copy: '复制',
     copied: '已复制',
@@ -223,6 +223,20 @@ const I18N = {
     confirmResetSettings: '确认恢复默认设置？',
     tablistLabel: '标签页',
     closeAria: '关闭',
+    heading1: '# 标题 1',
+    heading2: '## 标题 2',
+    heading3: '### 标题 3',
+    heading4: '#### 标题 4',
+    heading5: '##### 标题 5',
+    heading6: '###### 标题 6',
+    previewMode: '预览模式',
+    editMode: '编辑模式',
+    newTab: '新建标签页',
+    scrollLeft: '向左滚动',
+    scrollRight: '向右滚动',
+    backToTop: '回到顶部',
+    loading: '加载中...',
+    cursorPos: '行 {line}, 列 {col}',
   },
   en: {
     file: 'File',
@@ -394,9 +408,9 @@ const I18N = {
     copyFailed: 'Copy failed',
     guideSwitchZh: '\n\n> [切换中文](#switch-lang)',
     guideSwitchEn: '> [Switch to English](#switch-lang)',
-    openedGuide: '已打开使用说明',
+    openedGuide: 'User guide opened',
     openedGuideEn: 'Opened User Guide',
-    failedGuide: '打开使用说明失败',
+    failedGuide: 'Failed to open user guide',
     failedGuideEn: 'Failed to open guide',
     switchedZh: '已切换到中文',
     switchedEn: 'Switched to English',
@@ -423,13 +437,27 @@ const I18N = {
     confirmResetSettings: 'Restore default settings?',
     tablistLabel: 'Tabs',
     closeAria: 'Close',
+    heading1: '# Heading 1',
+    heading2: '## Heading 2',
+    heading3: '### Heading 3',
+    heading4: '#### Heading 4',
+    heading5: '##### Heading 5',
+    heading6: '###### Heading 6',
+    previewMode: 'Preview Mode',
+    editMode: 'Edit Mode',
+    newTab: 'New Tab',
+    scrollLeft: 'Scroll Left',
+    scrollRight: 'Scroll Right',
+    backToTop: 'Back to Top',
+    loading: 'Loading...',
+    cursorPos: 'Line {line}, Col {col}',
   }
 };
 
 class MarkdownEditor {
   constructor() {
     this.untitledCounter = 1;
-    this.tabs = [new Tab(`未命名${this.untitledCounter++}`)];
+    this.tabs = [];
     this.activeTabIndex = 0;
     this.cm = null;
     this.debounceTimer = null;
@@ -444,6 +472,7 @@ class MarkdownEditor {
     this.settings = this.loadSettings();
     this.shortcuts = this.loadShortcuts();
     this.recordingAction = null;
+    this.tabs.push(new Tab(this.t('untitled') + this.untitledCounter++));
 
     this.preview = document.getElementById('preview');
     if (this.preview) this.preview.style.scrollBehavior = 'auto';
@@ -528,7 +557,6 @@ class MarkdownEditor {
     updateToolbarBtn('btn-help', t('help'));
 
     // File menu items
-    setText('btn-new', null); document.querySelector('#btn-new span:first-of-type')?.nextElementSibling && (() => { const el = document.querySelector('#btn-new'); if (el) { const spans = el.querySelectorAll('span'); if (spans.length >= 1) spans[0].textContent = t('new'); } })();
     // Use direct approach for menu items
     const updateMenuText = (id, text) => {
       const el = document.getElementById(id);
@@ -565,6 +593,10 @@ class MarkdownEditor {
     document.getElementById('word-count').textContent = t('words') + ': 0';
     document.getElementById('char-count').textContent = t('chars') + ': 0';
     document.getElementById('line-count').textContent = t('lines') + ': 0';
+    if (this.cm) {
+      const cur = this.cm.getCursor();
+      document.getElementById('cursor-position').textContent = this.t('cursorPos', { line: cur.line + 1, col: cur.ch + 1 });
+    }
 
     // Drag overlay
     setText('drag-overlay', t('dropFileHere'));
@@ -697,6 +729,188 @@ class MarkdownEditor {
     document.querySelector('#preview-find-panel .find-option:nth-child(3)') && (document.querySelector('#preview-find-panel .find-option:nth-child(3)').childNodes[1] && (document.querySelector('#preview-find-panel .find-option:nth-child(3)').childNodes[1].textContent = ' ' + t('regex')));
     document.getElementById('preview-find-next').textContent = t('findNext');
     document.getElementById('preview-find-prev').textContent = t('findPrev');
+
+    // Save dialog message
+    setText('save-dialog-message', t('saveDialogMessage'));
+
+    // Confirm dialog title & message
+    setText('confirm-dialog-title', t('confirm'));
+    setText('confirm-dialog-message', t('confirmResetSettings'));
+
+    // Shortcuts dialog
+    setText('shortcuts-title', t('shortcuts'));
+    document.getElementById('shortcuts-reset').textContent = t('resetDefault');
+    document.getElementById('shortcuts-save-btn').textContent = t('done');
+
+    // Loading overlay
+    setText('loading-text', t('loading'));
+
+    // Scroll-top button
+    setText('scroll-top-label', t('scrollTop'));
+    setTitle('scroll-top-btn', t('backToTop'));
+
+    // Tab bar tooltips
+    setTitle('btn-add-tab', t('newTab'));
+    setTitle('tab-scroll-left', t('scrollLeft'));
+    setTitle('tab-scroll-right', t('scrollRight'));
+
+    // Toolbar button titles
+    setTitle('btn-file', t('file'));
+    setTitle('btn-insert', t('insert'));
+    setTitle('btn-view', t('view'));
+    setTitle('btn-help', t('help'));
+    setTitle('btn-view-preview', t('previewMode'));
+    setTitle('btn-view-edit', t('editMode'));
+
+    // View menu outline toggle
+    const outlineToggle = document.getElementById('btn-outline-toggle');
+    if (outlineToggle) {
+      const labelSpan = outlineToggle.querySelector('span:last-of-type');
+      if (labelSpan) labelSpan.textContent = t('outline');
+    }
+
+    // ====== INSERT MENU ======
+    // Submenu triggers (items with data-submenu)
+    const subTriggerKeys = {
+      'insert-structure': 'structure',
+      'insert-text-format': 'textFormat',
+      'insert-list': 'list',
+      'insert-link-media': 'linkMedia',
+      'insert-heading': 'heading',
+      'insert-callout': 'callout',
+    };
+    document.querySelectorAll('.insert-submenu-trigger').forEach(el => {
+      const key = subTriggerKeys[el.dataset.submenu];
+      if (key) {
+        const span = el.querySelector('span:first-of-type');
+        if (span) span.textContent = t(key);
+      }
+    });
+
+    // Items with data-action inside insert submenus
+    const insActionKeys = {
+      'insert-code-block': 'codeBlock',
+      'insert-table': 'table',
+      'insert-quote': 'quoteBlock',
+      'insert-math-block': 'mathBlock',
+      'insert-mermaid': 'mermaidChart',
+      'insert-hr': 'hr',
+      'insert-toc': 'toc',
+      'insert-h1': 'heading1',
+      'insert-h2': 'heading2',
+      'insert-h3': 'heading3',
+      'insert-h4': 'heading4',
+      'insert-h5': 'heading5',
+      'insert-h6': 'heading6',
+      'insert-bold': 'bold',
+      'insert-italic': 'italic',
+      'insert-strikethrough': 'strikethrough',
+      'insert-inline-code': 'inlineCode',
+      'insert-highlight': 'highlight',
+      'insert-superscript': 'superscript',
+      'insert-subscript': 'subscript',
+      'insert-ul': 'ul',
+      'insert-ol': 'ol',
+      'insert-task': 'taskList',
+      'insert-link': 'link',
+      'insert-image': 'image',
+      'insert-callout-note': 'noteHint',
+      'insert-callout-tip': 'tipHint',
+      'insert-callout-warning': 'warningHint',
+      'insert-callout-caution': 'cautionHint',
+      'insert-callout-important': 'importantHint',
+    };
+    document.querySelectorAll(
+      '#insert-structure .dropdown-item[data-action],' +
+      '#insert-heading .dropdown-item[data-action],' +
+      '#insert-callout .dropdown-item[data-action],' +
+      '#insert-text-format .dropdown-item[data-action],' +
+      '#insert-list .dropdown-item[data-action],' +
+      '#insert-link-media .dropdown-item[data-action],' +
+      // Also cover context menu submenus
+      '#ctx-structure .context-menu-item[data-action],' +
+      '#ctx-heading .context-menu-item[data-action],' +
+      '#ctx-callout .context-menu-item[data-action],' +
+      '#ctx-text-format .context-menu-item[data-action],' +
+      '#ctx-list .context-menu-item[data-action],' +
+      '#ctx-link-media .context-menu-item[data-action]'
+    ).forEach(el => {
+      const key = insActionKeys[el.dataset.action];
+      if (key) {
+        const span = el.querySelector('span:first-of-type');
+        if (span) span.textContent = t(key);
+      }
+    });
+
+    // ====== CONTEXT MENUS ======
+    // Submenu triggers
+    const ctxSubKeys = {
+      'ctx-structure': 'structure',
+      'ctx-text-format': 'textFormat',
+      'ctx-list': 'list',
+      'ctx-link-media': 'linkMedia',
+      'ctx-heading': 'heading',
+      'ctx-callout': 'callout',
+    };
+    document.querySelectorAll('.context-submenu-trigger').forEach(el => {
+      const key = ctxSubKeys[el.dataset.submenu];
+      if (key) {
+        const span = el.querySelector('span:first-of-type');
+        if (span) span.textContent = t(key);
+      }
+    });
+
+    // Items with data-action
+    const ctxActionKeys = {
+      cut: 'cut',
+      copy: 'copy',
+      paste: 'paste',
+      'find-replace': 'findReplace',
+      'select-all': 'selectAll',
+      'preview-copy': 'copy',
+      'preview-select-all': 'selectAll',
+      'preview-copy-html': 'copyAsHTML',
+      'preview-find': 'findInPreview',
+      'tab-close': 'closeTab',
+      'tab-close-others': 'closeOther',
+      'tab-close-all': 'closeAll',
+      'tab-copy-path': 'copyFilePath',
+    };
+    document.querySelectorAll('.context-menu-item[data-action]').forEach(el => {
+      const key = ctxActionKeys[el.dataset.action];
+      if (key) {
+        const span = el.querySelector('span:first-of-type');
+        if (span) span.textContent = t(key);
+      }
+    });
+
+    // ====== SETTINGS DROPDOWN OPTIONS ======
+    // Theme mode
+    const themeSel = document.getElementById('set-theme-mode');
+    if (themeSel) {
+      themeSel.options[0].text = t('themeLight');
+      themeSel.options[1].text = t('themeDark');
+      themeSel.options[2].text = t('followSystem');
+    }
+    // Default view
+    const viewSel = document.getElementById('set-default-view');
+    if (viewSel) {
+      viewSel.options[0].text = t('preview');
+      viewSel.options[1].text = t('edit');
+    }
+    // Tab size
+    const tabSizeSel = document.getElementById('set-tab-size');
+    if (tabSizeSel) {
+      tabSizeSel.options[0].text = '2 ' + t('spaces');
+      tabSizeSel.options[1].text = '4 ' + t('spaces');
+      tabSizeSel.options[2].text = '8 ' + t('spaces');
+    }
+    // Max width (unlimited)
+    const maxWSel = document.getElementById('set-max-width');
+    if (maxWSel && maxWSel.options.length > 0) {
+      maxWSel.options[0].text = t('unlimited');
+    }
+    // Language selector — keep option text fixed (中文 / English)
   }
 
   loadSettings() {
@@ -1142,7 +1356,7 @@ class MarkdownEditor {
   }
 
   formatShortcutDisplay(key) {
-    if (!key) return '无';
+    if (!key) return this.t('none');
     return key.split('+').map(k => `<kbd>${k}</kbd>`).join('<span class="key-separator">+</span>');
   }
 
@@ -1171,8 +1385,8 @@ class MarkdownEditor {
           <span class="shortcut-label">${action.label}</span>
           <div class="shortcut-actions">
             <div class="shortcut-key">${this.formatShortcutDisplay(shortcut.key)}</div>
-            <button class="shortcut-record-btn${isRecording ? ' recording' : ''}" data-action="${action.id}">${isRecording ? '按下快捷键...' : '修改'}</button>
-            <button class="shortcut-clear-btn" data-action="${action.id}">清除</button>
+            <button class="shortcut-record-btn${isRecording ? ' recording' : ''}" data-action="${action.id}">${isRecording ? this.t('pressKeys') : this.t('modify')}</button>
+            <button class="shortcut-clear-btn" data-action="${action.id}">${this.t('clear')}</button>
           </div>
         </div>
       `;
@@ -1279,7 +1493,7 @@ class MarkdownEditor {
       findReplace: () => this.toggleFindPanel(true),
       bold: () => this.wrapSelection('**', '**'),
       italic: () => this.wrapSelection('*', '*'),
-      insertLink: () => this.insertAtCursor('[链接文本](https://example.com)', 1),
+      insertLink: () => this.insertAtCursor(`[${this.t('linkText')}](https://example.com)`, 1),
     };
 
     const toCmKey = (k) => k.replace(/\+/g, '-');
@@ -1346,7 +1560,7 @@ class MarkdownEditor {
     this.cm.on('cursorActivity', () => {
       const cursor = this.cm.getCursor();
       this.activeTab.cursorPos = cursor;
-      this.cursorPosition.textContent = `行 ${cursor.line + 1}, 列 ${cursor.ch + 1}`;
+      this.cursorPosition.textContent = this.t('cursorPos', { line: cursor.line + 1, col: cursor.ch + 1 });
     });
 
     // 双标志锁机制（demo 风格：canScroll.editor / canScroll.showDom）
@@ -1403,9 +1617,9 @@ class MarkdownEditor {
     this.updateOutline();
   }
 
-  addTab(name = '未命名', content = '', filePath = null) {
+  addTab(name = '', content = '', filePath = null) {
     const defaultName = this.t('untitled');
-    if (!name || name === '未命名' || name === defaultName) {
+    if (!name || name === defaultName) {
       name = `${defaultName}${this.untitledCounter++}`;
     }
     content = content.replace(/\r\n/g, '\n');
@@ -1935,7 +2149,7 @@ class MarkdownEditor {
         let pos = 0;
         while ((pos = lower.indexOf(q, pos)) !== -1) { count++; pos += q.length; }
       }
-      previewFindCount.textContent = count > 0 ? `${count} 个结果` : '无结果';
+      previewFindCount.textContent = count > 0 ? count + this.t('matches') : this.t('noMatches');
     };
 
     const doPreviewFind = (reverse = false) => {
@@ -3434,10 +3648,10 @@ ${htmlContent}
     } else {
       sideLeft.classList.remove('side-hidden', 'side-active');
       sideLeft.innerHTML = '&#9664;';
-      sideLeft.title = '折叠编辑器';
+      sideLeft.title = this.t('collapseEditor');
       sideRight.classList.remove('side-hidden', 'side-active');
       sideRight.innerHTML = '&#9654;';
-      sideRight.title = '折叠预览';
+      sideRight.title = this.t('collapsePreview');
     }
 
     setTimeout(() => {
@@ -3471,13 +3685,13 @@ ${htmlContent}
       container.classList.toggle('editor-collapsed');
       const isCollapsed = container.classList.contains('editor-collapsed');
       sideLeft.innerHTML = isCollapsed ? '&#9654;' : '&#9664;';
-      sideLeft.title = isCollapsed ? '恢复编辑器' : '折叠编辑器';
+      sideLeft.title = isCollapsed ? this.t('restoreEditor') : this.t('collapseEditor');
       sideLeft.classList.toggle('side-active', isCollapsed);
     } else {
       container.classList.toggle('preview-collapsed');
       const isCollapsed = container.classList.contains('preview-collapsed');
       sideRight.innerHTML = isCollapsed ? '&#9664;' : '&#9654;';
-      sideRight.title = isCollapsed ? '恢复预览' : '折叠预览';
+      sideRight.title = isCollapsed ? this.t('restorePreview') : this.t('collapsePreview');
       sideRight.classList.toggle('side-active', isCollapsed);
     }
 
