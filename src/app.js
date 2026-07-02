@@ -1591,6 +1591,10 @@ class MarkdownEditor {
     document.getElementById('about-dialog').addEventListener('click', (e) => {
       if (e.target.id === 'about-dialog') this.hideAbout();
     });
+    document.getElementById('gitee-badge').addEventListener('click', () => {
+      const url = document.getElementById('gitee-badge').dataset.url;
+      if (url) window.__TAURI__.shell.open(url);
+    });
     document.getElementById('qq-group-badge').addEventListener('click', () => {
       const badge = document.getElementById('qq-group-badge');
       const url = badge.dataset.joinUrl;
