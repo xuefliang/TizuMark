@@ -97,6 +97,8 @@
 ### 从源码构建
 
 ```bash
+git clone https://github.com/tizuio/TizuMark.git
+# 或国内镜像：
 git clone https://gitee.com/tizu/tizu-mark.git
 cd tizu-mark
 npm install
@@ -214,5 +216,7 @@ Copyright (c) 2024-2026 TizuMark
   &nbsp;·&nbsp;
   <b>QQ群 1035294939</b>
   &nbsp;·&nbsp;
-  <a href="https://gitee.com/tizu/tizu-mark">⭐ 给个 Star</a>
+  <a href="https://github.com/tizuio/TizuMark">⭐ GitHub Star</a>
+  &nbsp;·&nbsp;
+  <a href="https://gitee.com/tizu/tizu-mark">⭐ Gitee Star</a>
 </p>

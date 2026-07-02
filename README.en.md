@@ -70,7 +70,10 @@ The world isn't short of Markdown editors. But most fall into one of two camps: 
 
 ### Download
 
-Get the latest installer from [Releases](https://github.com/tizu/tizu-mark/releases):
+Get the latest installer from Releases:
+
+- [GitHub Releases](https://github.com/tizuio/TizuMark/releases)
+- [Gitee Releases](https://gitee.com/tizu/tizu-mark/releases)
 
 | Platform | Status |
 |---|---|
@@ -96,7 +99,9 @@ Install, launch, done.
 ### Build from Source
 
 ```bash
-git clone https://github.com/tizu/tizu-mark.git
+git clone https://github.com/tizuio/TizuMark.git
+# Or via Gitee (China mirror):
+git clone https://gitee.com/tizu/tizu-mark.git
 cd tizu-mark
 npm install
 npm run dev      # dev mode
@@ -155,7 +160,7 @@ Click "Restore Default" in `File → Settings` or `File → Keyboard Shortcuts`.
 <summary><b>How do I report a bug or request a feature?</b></summary>
 
 - QQ Group: **1035294939** (Chinese community)
-- [GitHub Issues](https://github.com/tizu/tizu-mark/issues)
+- [GitHub Issues](https://github.com/tizuio/TizuMark/issues)
 - [Gitee Issues](https://gitee.com/tizu/tizu-mark/issues)
 </details>
 
@@ -188,7 +193,7 @@ Can't donate? No worries. A GitHub star, a shout-out to a friend, a "nice tool" 
 | Channel | Link |
 |---|---|
 | QQ Group | **1035294939** [@Join the group【Tizu交流群】](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=G0xAh9l042apAmjy9MAKOI6pSMWhV5jI&authKey=hWwxCXRZkWorgQZtiBNeRE6L12Ow6CLSo9K9dWzSjDFNuIEfmnmLAWH1T3qooH40&noverify=0&group_code=1035294939)|
-| GitHub | [@tizu](https://github.com/tizu) |
+| GitHub | [@tizuio](https://github.com/tizuio) |
 | Gitee | [@tizu](https://gitee.com/tizu) |
 
 Questions, feedback, collaboration — open an issue or join the QQ group.
@@ -207,9 +212,13 @@ Bundled open-source components are licensed under their respective terms. See `H
 
 <p align="center">
   <b>✨ TizuMark — Stupidly light. Exactly fast enough.</b><br><br>
-  <a href="https://github.com/tizu/tizu-mark/releases">⬇ Download</a>
+  <a href="https://github.com/tizuio/TizuMark/releases">⬇ Download</a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/tizu/tizu-mark/issues">🐛 Report Bug</a>
+  <a href="https://gitee.com/tizu/tizu-mark/releases">⬇ Gitee Download</a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/tizu/tizu-mark">⭐ Star on GitHub</a>
+  <a href="https://github.com/tizuio/TizuMark/issues">🐛 Report Bug</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/tizuio/TizuMark">⭐ GitHub Star</a>
+  &nbsp;·&nbsp;
+  <a href="https://gitee.com/tizu/tizu-mark">⭐ Gitee Star</a>
 </p>
