@@ -800,10 +800,13 @@
     <div class="context-menu-item" data-action="tab-copy-path"><span>复制文件路径</span></div>
   </div>
 
-  <div id="loading-overlay" class="loading-overlay hidden">
+  <div id="loading-overlay" class="loading-overlay">
     <div class="loading-box">
-      <div class="loading-spinner"></div>
-      <span class="loading-text">加载中…</span>
+      <img class="loading-logo" src="app-icon.png" alt="TizuMark">
+      <div class="loading-progress-track">
+        <div id="loading-progress-fill" class="loading-progress-fill"></div>
+      </div>
+      <span class="loading-text" id="loading-text">加载中…</span>
     </div>
   </div>
 

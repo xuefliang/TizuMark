@@ -1,6 +1,14 @@
 use std::fs;
 use tauri::{Emitter, Manager};
 use tauri::WindowEvent;
+use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState};
+use tauri::menu::{Menu, MenuItem};
+
+fn show_window(window: &tauri::WebviewWindow) {
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+}
 
 fn escape_html(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -1056,7 +1064,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            if let Some(_window) = app.get_webview_window("main") {
+            if let Some(window) = app.get_webview_window("main") {
+                show_window(&window);
                 let _ = app.emit("file-open", argv);
             }
         }))
@@ -1065,6 +1074,45 @@ pub fn run() {
                 api.prevent_close();
                 let _ = window.emit("close-requested", ());
             }
+        })
+        .setup(|app| {
+            let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show, &quit])?;
+            TrayIconBuilder::new()
+                .tooltip("TizuMark")
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .on_menu_event(|app, event| {
+                    match event.id().as_ref() {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                show_window(&window);
+                            }
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    match event {
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        }
+                        | TrayIconEvent::DoubleClick { .. } => {
+                            if let Some(window) = tray.app_handle().get_webview_window("main") {
+                                show_window(&window);
+                            }
+                        }
+                        _ => {}
+                    }
+                })
+                .build(app)?;
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_cli_args,

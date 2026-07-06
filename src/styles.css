@@ -1971,6 +1971,7 @@ body.is-resizing .preview-pane {
 .eula-dialog {
   max-width: 600px;
   max-height: 75vh;
+  z-index: 20000;
 }
 
 .eula-scroll {
@@ -2584,11 +2585,10 @@ body.is-resizing .preview-pane {
   position: fixed;
   inset: 0;
   z-index: 10000;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-primary, #f5f5f5);
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: wait;
 }
 .loading-overlay.hidden {
   display: none;
@@ -2597,24 +2597,29 @@ body.is-resizing .preview-pane {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 24px 32px;
-  background: var(--bg-primary);
-  border-radius: 8px;
-  box-shadow: var(--shadow-md);
+  gap: 20px;
+  text-align: center;
 }
-.loading-spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--accent-color);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
+.loading-logo {
+  width: 48px;
+  height: 48px;
+  opacity: 0.7;
+}
+.loading-progress-track {
+  width: 200px;
+  height: 4px;
+  background: var(--border-color, #e0e0e0);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.loading-progress-fill {
+  width: 0%;
+  height: 100%;
+  background: var(--accent-color, #4a90d9);
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
 .loading-text {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-@keyframes spin {
-  to { transform: rotate(360deg); }
+  font-size: 14px;
+  color: var(--text-secondary, #666666);
 }

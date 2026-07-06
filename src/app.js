@@ -508,7 +508,6 @@ class MarkdownEditor {
     this._loadingStart = Date.now();
     const overlay = document.getElementById('loading-overlay');
     overlay.classList.remove('hidden');
-    // 强制浏览器重绘，确保遮罩层在后续阻塞操作前已渲染
     overlay.offsetHeight;
   }
 
@@ -4309,13 +4308,13 @@ ${clone.innerHTML}
           }
         }
       }
-      await getCurrentWindow().destroy();
+      await getCurrentWindow().hide();
     } catch (error) {
       console.error('handleAppClose error:', error);
       try {
         if (window.__TAURI__) {
           const { getCurrentWindow } = window.__TAURI__.window;
-          await getCurrentWindow().destroy();
+          await getCurrentWindow().hide();
         }
       } catch { /* 浏览器环境下降级 */ }
     }
@@ -4474,6 +4473,12 @@ ${clone.innerHTML}
   }
 }
 
+function updateLoadingProgress(percent, text) {
+  document.getElementById('loading-progress-fill').style.width = Math.min(100, Math.max(0, percent)) + '%';
+  const textEl = document.getElementById('loading-text');
+  if (textEl && text) textEl.textContent = text;
+}
+
 function initEula() {
   const eulaAccepted = localStorage.getItem('tizumark-eula-accepted');
   if (eulaAccepted === 'true') {
@@ -4504,19 +4509,28 @@ function initEula() {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
+  updateLoadingProgress(5, '正在检查许可协议…');
   const isFirstLaunch = await initEula();
 
+  updateLoadingProgress(15, '正在初始化编辑器…');
   window.editor = new MarkdownEditor();
+  window.editor._loadingStart = Date.now();
 
-  // 关闭窗口前检查未保存文件
+  updateLoadingProgress(60, '正在注册事件监听…');
   await window.__TAURI__.event.listen('close-requested', async () => {
     await window.editor.handleAppClose();
   });
 
-  // 当系统已有一个 TizuMark 实例运行时，再次双击 .md 文件会在当前窗口打开新标签页
   await window.__TAURI__.event.listen('file-open', async (event) => {
     const args = event.payload;
     if (!args || args.length === 0) return;
+
+    try {
+      const w = window.__TAURI__.window.getCurrentWindow();
+      await w.unminimize();
+      await w.show();
+      await w.setFocus();
+    } catch (_) {}
 
     window.editor.showLoading();
     try {
@@ -4536,18 +4550,14 @@ window.addEventListener('DOMContentLoaded', async () => {
           window.editor.updateOutline();
           window.editor.setStatus(`已打开: ${name}`);
         } catch (_) {
-          // 文件不存在或无法访问，静默忽略
         }
       }
     } finally {
       window.editor.hideLoading();
     }
-
-    try {
-      await window.__TAURI__.window.getCurrentWindow().setFocus();
-    } catch (_) {}
   });
 
+  updateLoadingProgress(85, '正在加载文件…');
   try {
     const args = await invoke('get_cli_args');
     if (args.length > 0) {
@@ -4570,4 +4580,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   } catch (e) {
     console.warn('Failed to open file from CLI args:', e);
   }
+
+  updateLoadingProgress(100, '准备就绪');
+  await new Promise(r => setTimeout(r, 300));
+  window.editor.hideLoading();
 });
