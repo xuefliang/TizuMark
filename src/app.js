@@ -4307,8 +4307,19 @@ ${clone.innerHTML}
         for (const tab of modified) {
           tab.content = tab.savedContent;
         }
+        const remaining = this.tabs.filter(t => t.filePath || t.content !== '');
+        if (remaining.length === 0) {
+          this.tabs.length = 0;
+          this.tabs.push(new Tab(`${this.t('untitled')}${this.untitledCounter++}`));
+          this.activeTabIndex = 0;
+        } else {
+          this.tabs = remaining;
+          if (this.activeTabIndex >= this.tabs.length) {
+            this.activeTabIndex = this.tabs.length - 1;
+          }
+        }
         this.cm.setValue(this.activeTab.content);
-        this.updateTabDisplay();
+        this.updateTabBar();
         this.updatePreview();
       }
       await getCurrentWindow().hide();
