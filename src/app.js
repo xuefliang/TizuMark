@@ -4303,6 +4303,13 @@ ${clone.innerHTML}
       if (result === 'save') {
         const ok = await this.batchSaveTabs(modified);
         if (!ok) return;
+      } else {
+        for (const tab of modified) {
+          tab.content = tab.savedContent;
+        }
+        this.cm.setValue(this.activeTab.content);
+        this.updateTabDisplay();
+        this.updatePreview();
       }
       await getCurrentWindow().hide();
     } catch (error) {
