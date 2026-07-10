@@ -4334,25 +4334,26 @@ ${clone.innerHTML}
 
   async checkUpdate(showUpToDate = false) {
     this._updateDismissed = false;
-    this.showUpdateDialog();
-    this.showUpdateState('checking');
+    if (showUpToDate) {
+      this.showUpdateDialog();
+      this.showUpdateState('checking');
+    }
     try {
       const { invoke } = window.__TAURI__.core;
       const result = await invoke('plugin:updater|check');
       if (this._updateDismissed) return;
       if (!result) {
-        this.showUpdateState('latest');
         if (showUpToDate) {
+          this.showUpdateState('latest');
           setTimeout(() => {
             this.hideUpdateDialog();
             this.showToast(this.t('updateNoUpdate'), 'success');
           }, 1200);
-        } else {
-          setTimeout(() => this.hideUpdateDialog(), 1200);
         }
         return;
       }
       const update = result;
+      if (!showUpToDate) this.showUpdateDialog();
       document.getElementById('update-new-version').textContent = update.version;
       try {
         const ver = await window.__TAURI__.app.getVersion();
@@ -4374,9 +4375,10 @@ ${clone.innerHTML}
       this.setUpdateAction('download');
     } catch (err) {
       console.error('Update check failed:', err);
-      if (this._updateDismissed) return;
-      this.hideUpdateDialog();
-      if (showUpToDate) this.showToast(this.t('updateFailed'));
+      if (showUpToDate) {
+        this.hideUpdateDialog();
+        this.showToast(this.t('updateFailed'));
+      }
     }
   }
 
