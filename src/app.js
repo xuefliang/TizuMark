@@ -257,6 +257,12 @@ const I18N = {
     imageSettingAssets: '复制到 assets/（推荐）',
     imageSettingBase64: 'Base64 嵌入',
     imageSettingHint: '复制到 assets/：图片保存为独立文件，md 文件轻量，便于版本管理。Base64 嵌入：图片编码到 md 文件内，单文件即可分享，但文件体积显著增大（约原图1.4倍），修改图片需重新编码。',
+    imageAssetPathLabel: '图片存储路径',
+    imageAssetPathModeRelative: '相对路径',
+    imageAssetPathModeAbsolute: '绝对路径',
+    imageAssetPathRelativeHint: '相对于 markdown 文件所在目录的路径。例如 assets → 图片将保存在 docs/assets/。将整个文件夹移动到其他位置后，路径仍然有效，无需额外操作。',
+    imageAssetPathAbsoluteHint: '完整的磁盘路径。例如 D:/images → 图片将直接保存到 D:/images/。如果将 markdown 文件夹移动到其他位置，图片路径会失效，需要手动更新引用。',
+    imageAssetPathPlaceholder: 'assets',
     imageFileRequired: '请选择要插入的本地图片',
     imageUrlRequired: '请输入网络图片地址',
     needSaveFirst: '请先保存 markdown 文件后再插入图片',
@@ -512,6 +518,12 @@ const I18N = {
     imageSettingAssets: 'Copy to assets/ (Recommended)',
     imageSettingBase64: 'Embed as Base64',
     imageSettingHint: 'Copy to assets/: Images are saved as separate files, keeping the markdown file lightweight and suitable for version control. Embed as Base64: Encodes images into the markdown file for self-contained sharing, but file size increases significantly (~1.4x original). Requires re-encoding to modify.',
+    imageAssetPathLabel: 'Image Asset Path',
+    imageAssetPathModeRelative: 'Relative Path',
+    imageAssetPathModeAbsolute: 'Absolute Path',
+    imageAssetPathRelativeHint: 'Relative to the markdown file\'s directory. Example: assets → images saved in docs/assets/. Path remains valid when moving the entire folder to another location.',
+    imageAssetPathAbsoluteHint: 'Full disk path. Example: D:/images → images saved directly in D:/images/. Path will break if the markdown folder is moved to another location.',
+    imageAssetPathPlaceholder: 'assets',
     imageFileRequired: 'Please select a local image file',
     imageUrlRequired: 'Please enter an image URL',
     needSaveFirst: 'Save the markdown file first before inserting images',
@@ -1015,6 +1027,8 @@ class MarkdownEditor {
       scrollSync: true,
       language: 'zh',
       imageInsertMode: 'assets',
+      imageAssetPath: 'assets',
+      imageAssetPathMode: 'relative',
     };
     try {
       const saved = JSON.parse(localStorage.getItem('tizumark-settings'));
@@ -1144,6 +1158,23 @@ class MarkdownEditor {
         this.saveSettings();
       });
     });
+
+    document.getElementById('settings-image-asset-path').value = s.imageAssetPath || 'assets';
+    document.getElementById('settings-image-asset-path').addEventListener('change', (e) => {
+      this.settings.imageAssetPath = e.target.value.trim() || 'assets';
+      this.saveSettings();
+    });
+
+    const pathModeRadio = document.querySelector(`#settings-image-asset-path-mode input[value="${s.imageAssetPathMode || 'relative'}"]`);
+    if (pathModeRadio) pathModeRadio.checked = true;
+    document.querySelectorAll('#settings-image-asset-path-mode input[name="settings-image-asset-path"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        this.settings.imageAssetPathMode = e.target.value;
+        this.saveSettings();
+        this.updateImageAssetPathHint();
+      });
+    });
+    this.updateImageAssetPathHint();
 
     this.applySettings();
   }
@@ -1391,6 +1422,8 @@ class MarkdownEditor {
       scrollSync: true,
       language: 'zh',
       imageInsertMode: 'assets',
+      imageAssetPath: 'assets',
+      imageAssetPathMode: 'relative',
     };
     this.settings = defaults;
     localStorage.removeItem('tizumark-settings');
@@ -1410,9 +1443,36 @@ class MarkdownEditor {
     document.getElementById('set-language').value = defaults.language;
     const defaultRadio = document.querySelector(`#settings-image-store-mode input[value="${defaults.imageInsertMode}"]`);
     if (defaultRadio) defaultRadio.checked = true;
+    document.getElementById('settings-image-asset-path').value = defaults.imageAssetPath;
+    const defaultPathRadio = document.querySelector(`#settings-image-asset-path-mode input[value="${defaults.imageAssetPathMode}"]`);
+    if (defaultPathRadio) defaultPathRadio.checked = true;
+    this.updateImageAssetPathHint();
 
     await this.applySettings();
     this.setStatus(this.t('settingsReset'));
+  }
+
+  updateImageAssetPathHint() {
+    const mode = this.settings.imageAssetPathMode || 'relative';
+    const hintEl = document.getElementById('setting-image-asset-path-hint-text');
+    if (hintEl) {
+      hintEl.textContent = mode === 'relative'
+        ? this.t('imageAssetPathRelativeHint')
+        : this.t('imageAssetPathAbsoluteHint');
+    }
+  }
+
+  getImageAssetPath() {
+    const mode = this.settings.imageAssetPathMode || 'relative';
+    const path = this.settings.imageAssetPath || 'assets';
+    if (mode === 'absolute') {
+      return { assetsDir: path, refPrefix: path };
+    }
+    const tab = this.activeTab;
+    const sep = tab && tab.filePath ? (tab.filePath.includes('/') ? '/' : '\\') : '/';
+    const dir = tab && tab.filePath ? tab.filePath.substring(0, tab.filePath.lastIndexOf(sep)) : '';
+    const assetsDir = dir ? dir + sep + path : path;
+    return { assetsDir, refPrefix: path };
   }
 
   getDefaultShortcuts() {
@@ -2854,18 +2914,18 @@ class MarkdownEditor {
       this.setStatus(this.t('needSaveFirst'));
       return;
     }
-    const sep = tab.filePath.includes('/') ? '/' : '\\';
-    const dir = tab.filePath.substring(0, tab.filePath.lastIndexOf(sep));
-    const assetsDir = dir + sep + 'assets';
-    const fileName = filePath.split(/[/\\]/).pop();
-    const destPath = assetsDir + sep + fileName;
+    const { assetsDir, refPrefix } = this.getImageAssetPath();
+    const ext = filePath.split('.').pop().toLowerCase() || 'png';
     try {
-      await invoke('ensure_dir', { path: assetsDir });
       const content = await invoke('fetch_image_as_base64', { url: filePath });
       const bytes = Uint8Array.from(atob(content), c => c.charCodeAt(0));
-      await invoke('write_binary_file', { path: destPath, contents: Array.from(bytes) });
-      const relativePath = 'assets/' + fileName;
-      this.insertImageBlock(`![${alt || fileName}](${relativePath})`, alt.length + 4);
+      const info = await invoke('save_image_to_assets', { bytes: Array.from(bytes), ext, assetsDir });
+      const src = refPrefix + '/' + info.filename;
+      const w = info.width || '';
+      const h = info.height || '';
+      const dimAttr = w ? ` width="${w}" height="${h}"` : '';
+      const imgTag = `<img src="${src}"${dimAttr} alt="${alt || info.filename}">`;
+      this.insertImageBlock(imgTag, alt.length + 10);
       this.setStatus(this.t('imagePasted'));
     } catch (err) {
       this.showToast(this.t('imagePasteFailed') + ': ' + err);
@@ -2898,20 +2958,17 @@ class MarkdownEditor {
         this.showToast(this.t('needSaveFirst'));
         return;
       }
-      const tab = this.activeTab;
-      const sep = tab.filePath.includes('/') ? '/' : '\\';
-      const dir = tab.filePath.substring(0, tab.filePath.lastIndexOf(sep));
-      const assetsDir = dir + sep + 'assets';
-      const ts = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15);
+      const { assetsDir, refPrefix } = this.getImageAssetPath();
       const ext = file.type.split('/')[1] || 'png';
-      const fileName = `image-${ts}.${ext}`;
-      const destPath = assetsDir + sep + fileName;
       const buf = await file.arrayBuffer();
       const bytes = new Uint8Array(buf);
-      await invoke('ensure_dir', { path: assetsDir });
-      await invoke('write_binary_file', { path: destPath, contents: Array.from(bytes) });
-      const relativePath = 'assets/' + fileName;
-      this.insertImageBlock(`![image](${relativePath})`, 2);
+      const info = await invoke('save_image_to_assets', { bytes: Array.from(bytes), ext, assetsDir });
+      const alt = 'image';
+      const src = refPrefix + '/' + info.filename;
+      const w = info.width || '';
+      const h = info.height || '';
+      const dimAttr = w ? ` width="${w}" height="${h}"` : '';
+      this.insertImageBlock(`<img src="${src}"${dimAttr} alt="${alt}">`, 2);
       this.setStatus(this.t('imagePasted'));
     } else {
       const buf = await file.arrayBuffer();

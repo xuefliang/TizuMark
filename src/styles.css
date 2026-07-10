@@ -2399,6 +2399,17 @@ body.is-resizing .preview-pane {
   min-width: 100px;
 }
 
+.settings-text-input {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .toggle {
   position: relative;
   display: inline-block;
@@ -2718,6 +2729,10 @@ body.is-resizing .preview-pane {
   margin-bottom: 12px;
 }
 #setting-image-store-hint {
+  align-items: flex-start;
+}
+
+#setting-image-asset-path-hint {
   align-items: flex-start;
 }
 

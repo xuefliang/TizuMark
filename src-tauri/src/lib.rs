@@ -3,6 +3,7 @@ use tauri::{Emitter, Manager};
 use tauri::WindowEvent;
 use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState};
 use tauri::menu::{Menu, MenuItem};
+use md5::{Md5, Digest};
 
 fn show_window(window: &tauri::WebviewWindow) {
     let _ = window.unminimize();
@@ -239,6 +240,32 @@ fn write_binary_file(path: String, contents: Vec<u8>) -> Result<(), String> {
 #[tauri::command]
 fn ensure_dir(path: String) -> Result<(), String> {
     fs::create_dir_all(&path).map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+struct ImageAssetInfo {
+    filename: String,
+    width: u32,
+    height: u32,
+}
+
+#[tauri::command]
+fn save_image_to_assets(bytes: Vec<u8>, ext: String, assets_dir: String) -> Result<ImageAssetInfo, String> {
+    let hash = format!("{:x}", Md5::digest(&bytes));
+    let filename = format!("{}.{}", hash, ext);
+    let dest = std::path::Path::new(&assets_dir).join(&filename);
+
+    std::fs::create_dir_all(&assets_dir).map_err(|e| e.to_string())?;
+    if !dest.exists() {
+        std::fs::write(&dest, &bytes).map_err(|e| e.to_string())?;
+    }
+
+    let (width, height) = match imagesize::blob_size(&bytes) {
+        Ok(size) => (size.width as u32, size.height as u32),
+        Err(_) => (0, 0),
+    };
+
+    Ok(ImageAssetInfo { filename, width, height })
 }
 
 #[tauri::command]
@@ -1126,6 +1153,7 @@ pub fn run() {
             write_file,
             write_binary_file,
             ensure_dir,
+            save_image_to_assets,
             fetch_image_as_base64,
             generate_toc
         ])

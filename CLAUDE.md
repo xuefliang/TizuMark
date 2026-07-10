@@ -81,16 +81,180 @@ release body 用以下格式，不得更改：
 
 ### 完整步骤
 
-1. **构建**: `npm run build`
-2. **签名安装包**（用私钥 + 密码 `tizu2024`）：
-   ```
-   npx tauri signer sign -f C:\Users\admin\.tauri\tizu-updater.key -p tizu2024 "src-tauri/target/release/bundle/nsis/TizuMark_{version}_x64-setup.exe"
-   npx tauri signer sign -f C:\Users\admin\.tauri\tizu-updater.key -p tizu2024 "src-tauri/target/release/bundle/msi/TizuMark_{version}_x64_en-US.msi"
-   ```
-3. **生成 `update-windows-x86_64.json`**（参考项目根目录已有的文件，更新 version、signature、pub_date 和 url）
-4. **上传到 Gitee**：
-   - 用 API 创建 Release（access_token 在 remote origin URL 中 `oauth2:{token}@gitee.com`）
-   - 上传附件：NSIS、MSI、`update-windows-x86_64.json`
+按顺序执行以下所有步骤：
+
+#### 1. 更新版本号
+
+修改以下三个文件中的版本号（`1.0.3` → `1.0.4` 格式）：
+
+| 文件 | 字段 |
+|------|------|
+| `package.json` | `"version"` |
+| `src-tauri/tauri.conf.json` | `"version"` |
+| `src-tauri/Cargo.toml` | `version = "..."` |
+
+#### 2. 构建
+
+```bash
+npm run build
+```
+
+构建产物：
+- `src-tauri/target/release/bundle/nsis/TizuMark_{version}_x64-setup.exe`
+- `src-tauri/target/release/bundle/msi/TizuMark_{version}_x64_en-US.msi`
+
+#### 3. 复制到本地归档
+
+```bash
+Copy-Item -Path "src-tauri/target/release/bundle/nsis/TizuMark_{version}_x64-setup.exe" -Destination "release/" -Force
+Copy-Item -Path "src-tauri/target/release/bundle/msi/TizuMark_{version}_x64_en-US.msi" -Destination "release/" -Force
+```
+
+#### 4. 签名安装包
+
+私钥路径：`C:\Users\admin\.tauri\tizu-updater.key`
+密码：`tizu2024`
+
+```bash
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD="tizu2024"; npx tauri signer sign -f C:\Users\admin\.tauri\tizu-updater.key "src-tauri/target/release/bundle/nsis/TizuMark_{version}_x64-setup.exe"
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD="tizu2024"; npx tauri signer sign -f C:\Users\admin\.tauri\tizu-updater.key "src-tauri/target/release/bundle/msi/TizuMark_{version}_x64_en-US.msi"
+```
+
+记下输出中的 NSIS `signature`（MSI 签名用于记录，但 `update-windows-x86_64.json` 只需要 NSIS 签名）。
+
+#### 5. 生成 update-windows-x86_64.json
+
+编辑 `update-windows-x86_64.json`：
+- `version` → 新版本号
+- `notes` → 更新的 release notes（在已有模板基础上追加内容，注意 JSON 转义 `\n`）
+- `pub_date` → 当天日期 `YYYY-MM-DDT00:00:00Z`
+- `platforms.windows-x86_64.signature` → 上一步的 NSIS 签名
+- `platforms.windows-x86_64.url` → `https://gitee.com/tizu/tizu-mark/releases/download/v{version}/TizuMark_{version}_x64-setup.exe`
+
+同时复制到归档：
+```bash
+Copy-Item -Path "update-windows-x86_64.json" -Destination "release/" -Force
+```
+
+#### 6. 删除旧 Gitee Release
+
+```bash
+$token = "0dac842444bee19c14975bac33431437"; Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/tizu/tizu-mark/releases/{旧Release_ID}" -Headers @{"Authorization"="Bearer $token"} -Method Delete
+```
+
+Release ID 可以通过以下命令获取：
+```bash
+$token = "0dac842444bee19c14975bac33431437"; (Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/tizu/tizu-mark/releases" -Headers @{"Authorization"="Bearer $token"}) | Select-Object id, tag_name
+```
+
+#### 7. 创建 Release + 上传附件
+
+使用 Node.js 脚本（保证中文编码正确）：
+
+```javascript
+const https = require('https');
+const fs = require('fs');
+const path = require('path');
+
+const TOKEN = '0dac842444bee19c14975bac33431437';
+
+const releaseBody = {
+  tag_name: 'v{version}',
+  name: 'v{version}',
+  target_commitish: 'master',
+  body: `## ⬇️ 下载\n\n> **🏆 推荐大多数用户选择：** [⬇ TizuMark_{version}_x64-setup.exe](https://gitee.com/tizu/tizu-mark/releases/download/v{version}/TizuMark_{version}_x64-setup.exe)\n>\n> **🛠 企业/批量部署：** [⬇ TizuMark_{version}_x64_en-US.msi](https://gitee.com/tizu/tizu-mark/releases/download/v{version}/TizuMark_{version}_x64_en-US.msi)\n\n### 两种安装包说明\n\n| 安装包 | 适用人群 | 特点 |\n|--------|---------|------|\n| ⭐ **NSIS 安装包 (.exe)** — **推荐** | 绝大多数 Windows 用户 | 传统的 setup 向导安装，支持自定义安装路径、创建桌面快捷方式、自动注册文件关联。双击即装，即装即用。 |\n| **MSI 安装包 (.msi)** | 企业 IT 管理员、需要批量部署的用户 | 标准的 Windows Installer 格式，支持组策略推送、静默安装（msiexec /i TizuMark_{version}_x64_en-US.msi /qn）、适合企业环境集中管理。 |\n\n---\n\n## ✨ v{version} 更新内容\n\n### 新增\n- ...\n\n### 改进\n- ...\n\n### 修复\n- ...\n\n> 使用中遇到问题欢迎加 QQ 群：1035294939`,
+  prerelease: false,
+};
+
+// === 通用 API 请求函数 ===
+function apiRequest(method, path, body) {
+  return new Promise((resolve, reject) => {
+    const payload = body ? JSON.stringify(body) : null;
+    const options = {
+      hostname: 'gitee.com',
+      path: `/api/v5/repos/tizu/tizu-mark/releases${path}`,
+      method,
+      headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+    };
+    if (payload) options.headers['Content-Length'] = Buffer.byteLength(payload, 'utf-8');
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try { resolve(JSON.parse(data)); } catch { resolve(data); }
+        } else { reject(new Error(\`HTTP \${res.statusCode}: \${data}\`)); }
+      });
+    });
+    req.on('error', reject);
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+// === 上传附件函数 ===
+function uploadFile(releaseId, filePath) {
+  return new Promise((resolve, reject) => {
+    const fileName = path.basename(filePath);
+    const boundary = '----' + Date.now();
+    const header = \`--\${boundary}\\r\\nContent-Disposition: form-data; name="file"; filename="\${fileName}"\\r\\nContent-Type: application/octet-stream\\r\\n\\r\\n\`;
+    const footer = \`\\r\\n--\${boundary}--\\r\\n\`;
+    const fileContent = fs.readFileSync(filePath);
+    const body = Buffer.concat([Buffer.from(header, 'utf-8'), fileContent, Buffer.from(footer, 'utf-8')]);
+    const options = {
+      hostname: 'gitee.com',
+      path: \`/api/v5/repos/tizu/tizu-mark/releases/\${releaseId}/attach_files\`,
+      method: 'POST',
+      headers: { 'Authorization': \`Bearer \${TOKEN}\`, 'Content-Type': \`multipart/form-data; boundary=\${boundary}\`, 'Content-Length': body.length },
+    };
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve(data); } });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+// === 主流程 ===
+(async () => {
+  const release = await apiRequest('POST', '', releaseBody);
+  console.log('Created release #' + release.id);
+  const files = [
+    'D:\\\\project\\\\tizu-mark\\\\release\\\\TizuMark_{version}_x64-setup.exe',
+    'D:\\\\project\\\\tizu-mark\\\\release\\\\TizuMark_{version}_x64_en-US.msi',
+    'D:\\\\project\\\\tizu-mark\\\\release\\\\update-windows-x86_64.json',
+  ];
+  for (const f of files) {
+    const r = await uploadFile(release.id, f);
+    console.log('Uploaded: ' + path.basename(f));
+  }
+  console.log('All done!');
+})();
+```
+
+将上述脚本保存为 `scripts/release.js`，替换 `{version}` 后执行：
+```bash
+node scripts/release.js
+```
+完成后删除临时脚本。
+
+#### 8. 验证
+
+确认 Gitee Release body 中文显示正常：
+```bash
+node -e "const https=require('https');https.get('https://gitee.com/api/v5/repos/tizu/tizu-mark/releases/{Release_ID}',{headers:{'Authorization':'Bearer 0dac842444bee19c14975bac33431437'}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{const j=JSON.parse(d);console.log('name:',j.name);console.log('body contains 下载:',j.body.includes('下载'))})})"
+```
+
+#### 9. 提交推送
+
+```bash
+git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/src/lib.rs src/app.js src/index.html src/styles.css update-windows-x86_64.json CLAUDE.md
+git commit -m "chore: bump version to {version}"
+git push
+```
 
 ### 私钥信息
 
@@ -98,3 +262,11 @@ release body 用以下格式，不得更改：
 - 公钥：已配置在 `src-tauri/tauri.conf.json` 的 `pubkey` 字段
 - 密码：`tizu2024`（也保存于 `C:\Users\admin\.tauri\tizu-updater.password`）
 - **永远不要丢失私钥或密码，否则无法签名更新包**
+
+### 关键注意事项
+
+- **构建前**先更新版本号（3 个文件），版本号不一致会导致构建失败
+- **永远不要**在未签名的状态下发布安装包
+- Gitee API 的 release body 必须用 Node.js 发送（PowerShell 的 `Invoke-RestMethod` 在 PS5.1 中编码会出错，导致中文乱码）
+- 上传附件顺序：NSIS → MSI → update JSON（无先后依赖）
+- 每次发布后，`release/` 目录包含最新全套产物，可作为备份

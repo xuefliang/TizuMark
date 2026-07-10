@@ -811,6 +811,18 @@
               <span class="hint-text">复制到 assets/：图片保存为独立文件，md 文件轻量，便于版本管理。Base64 嵌入：图片编码到 md 文件内，单文件即可分享，但文件体积显著增大（约原图1.4倍），修改图片需重新编码。</span>
             </p>
           </div>
+          <div class="settings-row settings-row-stacked">
+            <label>图片存储路径</label>
+            <div class="radio-group" id="settings-image-asset-path-mode">
+              <label><input type="radio" name="settings-image-asset-path" value="relative" checked /> <span>相对路径</span></label>
+              <label><input type="radio" name="settings-image-asset-path" value="absolute" /> <span>绝对路径</span></label>
+            </div>
+            <input type="text" id="settings-image-asset-path" value="assets" class="settings-text-input" />
+            <p class="form-hint" id="setting-image-asset-path-hint">
+              <svg class="hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <span class="hint-text" id="setting-image-asset-path-hint-text">相对于 markdown 文件所在目录的路径。例如 <code>assets</code> → 图片将保存在 <code>docs/assets/</code>。将整个文件夹移动到其他位置后，路径仍然有效，无需额外操作。</span>
+            </p>
+          </div>
         </div>
       </div>
       <div class="dialog-footer">
