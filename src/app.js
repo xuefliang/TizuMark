@@ -1170,6 +1170,8 @@ class MarkdownEditor {
     document.querySelectorAll('#settings-image-asset-path-mode input[name="settings-image-asset-path"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         this.settings.imageAssetPathMode = e.target.value;
+        this.settings.imageAssetPath = e.target.value === 'absolute' ? 'D:/images' : 'assets';
+        document.getElementById('settings-image-asset-path').value = this.settings.imageAssetPath;
         this.saveSettings();
         this.updateImageAssetPathHint();
       });
@@ -3840,10 +3842,23 @@ ${clone.innerHTML}
     const promises = Array.from(images).map(async (img) => {
       let src = img.getAttribute('src');
       if (!src || src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://') || src.startsWith('file://')) return;
-      // Resolve relative path against the markdown file's directory
-      if (src.startsWith('/')) {
-        src = src.slice(1);
+      // Absolute path (Unix /... or Windows D:/...) — load directly
+      if (src.startsWith('/') || /^[a-zA-Z]:[/\\]/.test(src)) {
+        try {
+          const base64 = await invoke('fetch_image_as_base64', { url: src });
+          const ext = src.split('.').pop().toLowerCase();
+          let mime = 'image/png';
+          if (ext === 'jpg' || ext === 'jpeg') mime = 'image/jpeg';
+          else if (ext === 'gif') mime = 'image/gif';
+          else if (ext === 'svg') mime = 'image/svg+xml';
+          else if (ext === 'webp') mime = 'image/webp';
+          img.src = `data:${mime};base64,${base64}`;
+        } catch (e) {
+          console.warn('[preview] Failed to load image:', src, e);
+        }
+        return;
       }
+      // Relative path — prepend markdown file's directory
       const absPath = dir + '/' + src;
       try {
         const base64 = await invoke('fetch_image_as_base64', { url: absPath });
