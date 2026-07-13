@@ -32,6 +32,7 @@ const I18N = {
     saveAs: '另存为',
     exportHTML: '导出 HTML',
     exportImg: '导出长图',
+    exportPDF: '导出 PDF',
     shortcuts: '快捷键设置',
     settings: '设置',
     insert: '插入',
@@ -173,8 +174,10 @@ const I18N = {
     none: '无',
     pressKeys: '按下快捷键...',
     generatingImg: '正在生成长图...',
+    preparingPrint: '正在准备打印...',
     exportedImg: '已导出长图',
     exportedHTML: '已导出 HTML',
+    exportedPDF: '已导出 PDF',
     editor: '编辑器',
     previewSection: '预览',
     paneEdit: '编辑',
@@ -292,6 +295,7 @@ const I18N = {
     saveAs: 'Save As',
     exportHTML: 'Export HTML',
     exportImg: 'Export Image',
+    exportPDF: 'Export PDF',
     shortcuts: 'Shortcuts',
     settings: 'Settings',
     insert: 'Insert',
@@ -433,8 +437,10 @@ const I18N = {
     none: 'None',
     pressKeys: 'Press keys...',
     generatingImg: 'Generating image...',
+    preparingPrint: 'Preparing to print...',
     exportedImg: 'Exported image',
     exportedHTML: 'Exported HTML',
+    exportedPDF: 'PDF exported',
     editor: 'Editor',
     previewSection: 'Preview',
     paneEdit: 'Edit',
@@ -667,6 +673,7 @@ class MarkdownEditor {
     updateMenuText('btn-save-as', t('saveAs'));
     updateMenuText('btn-export-html', t('exportHTML'));
     updateMenuText('btn-export-img', t('exportImg'));
+    updateMenuText('btn-export-pdf', t('exportPDF'));
     updateMenuText('btn-shortcuts', t('shortcuts'));
     updateMenuText('btn-settings', t('settings'));
     updateMenuText('btn-user-guide', t('userGuide'));
@@ -2039,6 +2046,10 @@ class MarkdownEditor {
       document.getElementById('file-menu').classList.add('hidden');
       this.exportImage();
     });
+    document.getElementById('btn-export-pdf').addEventListener('click', () => {
+      document.getElementById('file-menu').classList.add('hidden');
+      this.exportPDF();
+    });
     document.getElementById('btn-settings').addEventListener('click', () => {
       document.getElementById('file-menu').classList.add('hidden');
       this.showSettings();
@@ -2553,6 +2564,14 @@ class MarkdownEditor {
 
   initExternalLinks() {
     this.preview.addEventListener('click', async (e) => {
+      const img = e.target.closest('img');
+      if (img && img.src) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showImageLightbox(img.src);
+        return;
+      }
+
       const link = e.target.closest('a');
       if (!link) return;
 
@@ -2629,6 +2648,34 @@ class MarkdownEditor {
         window.open(href, '_blank', 'noopener,noreferrer');
       }
     }, true);
+  }
+
+  showImageLightbox(src) {
+    let scale = 1;
+    const overlay = document.createElement('div');
+    overlay.className = 'image-lightbox';
+    const img = document.createElement('img');
+    img.src = src;
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
+
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+    };
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+
+    overlay.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      scale += e.deltaY < 0 ? 0.15 : -0.15;
+      scale = Math.max(0.2, Math.min(5, scale));
+      img.style.transform = `scale(${scale})`;
+    }, { passive: false });
   }
 
   initDragDrop() {
@@ -3238,7 +3285,9 @@ class MarkdownEditor {
     .toc-wrapper { padding: 12px 16px; margin: 16px 0; background: #f6f5f4; border-radius: 8px; border: 1px solid #d4d4d8; }
     .toc-list ul { list-style: none; padding-left: 16px; margin: 2px 0; }
     .toc-list li { margin-bottom: 3px; line-height: 1.6; }
-    .toc a { color: #2563eb; text-decoration: underline; font-size: 0.92em; }
+.toc a { color: #2563eb; text-decoration: underline; font-size: 0.92em; }
+input[type="checkbox"] { -webkit-appearance: none; appearance: none; margin-right: 8px; width: 16px; height: 16px; border: 1.5px solid #d4d4d8; border-radius: 3px; vertical-align: middle; position: relative; top: -1px; cursor: default; }
+input[type="checkbox"]:checked { background: #16a34a url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIj48cGF0aCBkPSJNNSAxM2w0IDRMMTkgNyIvPjwvc3ZnPg==") center / 14px no-repeat; border-color: #16a34a; }
     input[type="checkbox"] { -webkit-appearance: none; appearance: none; margin-right: 8px; width: 16px; height: 16px; border: 1.5px solid #d4d4d8; border-radius: 3px; vertical-align: middle; position: relative; top: -1px; cursor: default; }
     input[type="checkbox"]:checked { background: #16a34a; border-color: #16a34a; }
     input[type="checkbox"]:checked::after { content: ''; position: absolute; left: 4px; top: 1px; width: 5px; height: 9px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
@@ -3341,6 +3390,116 @@ ${clone.innerHTML}
         clone.parentNode.removeChild(clone);
       }
     }
+  }
+
+  async exportPDF() {
+    this.setStatus(this.t('preparingPrint'));
+
+    const clone = this.preview.cloneNode(true);
+    clone.querySelectorAll('.copy-btn, #abbr-data').forEach(el => el.remove());
+
+    // Re-render Mermaid at print width. Essential: narrow preview panes
+    // make Mermaid stack class/ER boxes vertically → tall viewBoxes that
+    // blow up when rendered at print width.
+    const mermaidContainers = Array.from(clone.querySelectorAll('.mermaid-container'));
+    if (typeof mermaid !== 'undefined' && mermaidContainers.length) {
+      const temp = document.createElement('div');
+      temp.style.cssText = 'position:absolute;width:680px;visibility:hidden;';
+      document.body.appendChild(temp);
+      mermaidContainers.forEach(c => {
+        const d = document.createElement('div');
+        d.className = 'mermaid-container';
+        d.textContent = c.getAttribute('data-code') || c.textContent;
+        temp.appendChild(d);
+      });
+      try {
+        const ff = getComputedStyle(document.documentElement).getPropertyValue('--font-preview').trim() || '-apple-system, sans-serif';
+        mermaid.initialize({ startOnLoad: false, theme: this.isDark ? 'dark' : 'default', securityLevel: 'loose', fontFamily: ff, themeVariables: { fontSize: '14px' } });
+        await mermaid.run({ nodes: Array.from(temp.querySelectorAll('.mermaid-container')) });
+        const rendered = Array.from(temp.querySelectorAll('.mermaid-container'));
+        mermaidContainers.forEach((oldC, i) => {
+          if (rendered[i]) {
+            const svg = rendered[i].querySelector('svg');
+            if (svg) svg.removeAttribute('style');
+            oldC.replaceWith(rendered[i].cloneNode(true));
+          }
+        });
+      } catch (e) {
+        console.error('Mermaid PDF re-render error:', e);
+      } finally {
+        temp.remove();
+      }
+    }
+
+    const escapedTitle = this.activeTab.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    let appCSS = '';
+    try {
+      const resp = await fetch('styles.css');
+      if (resp.ok) appCSS = await resp.text();
+    } catch (e) { /* skip */ }
+
+    let hljsCSS = '';
+    try {
+      const themeLink = document.getElementById('highlight-theme');
+      if (themeLink) {
+        const resp = await fetch(themeLink.getAttribute('href'));
+        if (resp.ok) hljsCSS = await resp.text();
+      }
+    } catch (e) { /* skip */ }
+
+    let katexCSS = '';
+    try {
+      const resp = await fetch('lib/katex/katex.min.css');
+      if (resp.ok) katexCSS = await resp.text();
+    } catch (e) { /* skip */ }
+
+    const colorScheme = document.documentElement.getAttribute('data-color-scheme') || 'default';
+
+    const printCSS = `
+@page { margin: 1.5cm; }
+html, body { margin: 0 !important; padding: 0 !important; background: white !important; }
+.preview-content { max-width: 680px !important; margin: 0 auto !important; padding: 16px 24px !important; }
+.mermaid-container { max-width: 100% !important; overflow: hidden !important; break-inside: avoid; page-break-inside: avoid; }
+.mermaid-container svg { max-width: 100% !important; height: auto !important; display: block !important; margin: 0 auto !important; }
+.mermaid-container svg text, .mermaid-container svg .nodeLabel, .mermaid-container svg .edgeLabel, .mermaid-container svg .label, .mermaid-container svg textPath { font-size: 14px !important; }
+.mermaid-container svg foreignObject,
+.mermaid-container svg foreignObject div,
+.mermaid-container svg foreignObject span { font-size: 14px !important; line-height: 1.4 !important; }
+h1, h2, h3 { page-break-after: avoid; }
+blockquote, table, img, .math-display, .alert, .mermaid-container { page-break-inside: avoid; }
+p, li { orphans: 3; widows: 3; }
+input[type="checkbox"] { -webkit-appearance: none; appearance: none; margin-right: 8px; width: 16px; height: 16px; border: 1.5px solid #d4d4d8; border-radius: 3px; vertical-align: middle; position: relative; top: -1px; cursor: default; }
+input[type="checkbox"]:checked { background: #16a34a url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIj48cGF0aCBkPSJNNSAxM2w0IDRMMTkgNyIvPjwvc3ZnPg==") center / 14px no-repeat; border-color: #16a34a; }
+input[type="checkbox"]:checked::after { display: none !important; }
+`;
+
+    const html = `<!DOCTYPE html>
+<html lang="zh-CN" data-color-scheme="${colorScheme}" data-theme="light">
+<head><meta charset="UTF-8"><title>${escapedTitle}</title>
+<style>${appCSS}${hljsCSS}${katexCSS}${printCSS}</style></head>
+<body>
+<div class="preview-content">${clone.innerHTML}</div>
+</body></html>`;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:680px;height:600px;border:none;';
+    iframe.srcdoc = html;
+    document.body.appendChild(iframe);
+
+    iframe.onload = () => {
+      const after = () => {
+        iframe.contentWindow.removeEventListener('afterprint', after);
+        iframe.remove();
+        this.setStatus(this.t('exportedPDF'));
+      };
+      iframe.contentWindow.addEventListener('afterprint', after);
+      setTimeout(() => {
+        iframe.contentWindow.removeEventListener('afterprint', after);
+        if (iframe.parentNode) iframe.remove();
+      }, 30000);
+      iframe.contentWindow.print();
+    };
   }
 
   debounceUpdatePreview() {

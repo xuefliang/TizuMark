@@ -1263,7 +1263,30 @@ body.is-resizing .side-btn {
 .preview-content th[align="center"], .preview-content td[align="center"] { text-align: center; }
 .preview-content th[align="right"], .preview-content td[align="right"] { text-align: right; }
 
-.preview-content img { max-width: 100%; height: auto; border-radius: 4px; }
+.preview-content img { max-width: 100%; height: auto; border-radius: 4px; cursor: zoom-in; }
+
+/* Image Lightbox */
+.image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+  backdrop-filter: blur(4px);
+}
+.image-lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 4px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  cursor: default;
+  transition: transform 0.15s ease;
+  user-select: none;
+  -webkit-user-drag: none;
+}
 
 .preview-content hr {
   border: none;
@@ -2902,4 +2925,26 @@ body.is-resizing .side-btn {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@media print {
+  html { height: auto !important; overflow: visible !important; }
+  body { height: auto !important; overflow: visible !important; background: white !important; }
+
+  header, .toolbar, .editor-pane, .resizer, .outline-sidebar, .outline-resizer,
+  .side-btn, .pane-header, .scroll-top-btn, .toast, footer, .statusbar,
+  #update-status, .dropdown-menu, .dropdown-backdrop, #toast-container,
+  #find-panel, #preview-find-panel { display: none !important; }
+
+  #app { display: block !important; height: auto !important; overflow: visible !important; }
+  .editor-container { display: block !important; height: auto !important; overflow: visible !important; flex: none !important; }
+  .preview-pane { display: block !important; width: 100% !important; height: auto !important; overflow: visible !important; flex: none !important; min-width: 0 !important; position: static !important; contain: none !important; }
+  #preview-wrapper { display: block !important; height: auto !important; overflow: visible !important; flex: none !important; position: static !important; }
+  .preview-content { display: block !important; height: auto !important; overflow: visible !important; flex: none !important; max-width: none !important; padding: 0 !important; background: transparent !important; }
+  .mermaid-container { max-width: 100% !important; overflow: hidden !important; }
+  .mermaid-container svg { width: 100% !important; max-width: 100% !important; height: auto !important; display: block !important; margin: 0 auto !important; }
+
+  pre, blockquote, table, img, .math-display, .alert, .katex-display-wrapper { page-break-inside: avoid; }
+  p, li { orphans: 3; widows: 3; }
+  @page { margin: 1.5cm; }
 }
