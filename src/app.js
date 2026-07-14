@@ -1059,6 +1059,8 @@ class MarkdownEditor {
       imageAssetPath: 'assets',
       imageAssetPathMode: 'relative',
       outlineWidth: 240,
+      codeLineNumbers: false,
+      codeWrap: false,
     };
     try {
       const saved = JSON.parse(localStorage.getItem('tizumark-settings'));
@@ -1108,6 +1110,8 @@ class MarkdownEditor {
     document.getElementById('set-font-scheme').value = s.fontScheme || 'system-sans';
     document.getElementById('set-default-view').value = s.defaultView;
     document.getElementById('set-scroll-sync').checked = s.scrollSync;
+    document.getElementById('set-code-line-numbers').checked = s.codeLineNumbers;
+    document.getElementById('set-code-wrap').checked = s.codeWrap;
     document.getElementById('set-language').value = s.language || 'zh';
     const modeRadio = document.querySelector(`#settings-image-store-mode input[value="${s.imageInsertMode || 'assets'}"]`);
     if (modeRadio) modeRadio.checked = true;
@@ -1186,6 +1190,18 @@ class MarkdownEditor {
     document.getElementById('set-scroll-sync').addEventListener('change', (e) => {
       this.settings.scrollSync = e.target.checked;
       this.saveSettings();
+    });
+    document.getElementById('set-code-line-numbers').addEventListener('change', (e) => {
+      this.settings.codeLineNumbers = e.target.checked;
+      this.preview.classList.toggle('code-line-numbers', e.target.checked);
+      this.saveSettings();
+      this.updatePreview();
+    });
+    document.getElementById('set-code-wrap').addEventListener('change', (e) => {
+      this.settings.codeWrap = e.target.checked;
+      this.preview.classList.toggle('code-wrap', e.target.checked);
+      this.saveSettings();
+      this.updatePreview();
     });
     document.getElementById('set-language').addEventListener('change', (e) => {
       this.settings.language = e.target.value;
@@ -1449,6 +1465,8 @@ class MarkdownEditor {
       this.preview.style.margin = '';
       this.preview.classList.remove('max-width-active');
     }
+    this.preview.classList.toggle('code-line-numbers', s.codeLineNumbers);
+    this.preview.classList.toggle('code-wrap', s.codeWrap);
     await this.applyThemeMode();
     this.applyFontScheme();
   }
@@ -1560,6 +1578,8 @@ class MarkdownEditor {
       imageAssetPath: 'assets',
       imageAssetPathMode: 'relative',
       outlineWidth: 240,
+      codeLineNumbers: false,
+      codeWrap: false,
     };
     this.settings = defaults;
     localStorage.removeItem('tizumark-settings');
@@ -4370,6 +4390,18 @@ input[type="checkbox"]:checked::after { display: none !important; }
           });
         } catch (e) { console.warn('[preview] HLJS error:', e); }
       }
+
+      // 代码块行号（拆分代码行，CSS 控制行号显隐和换行）
+      try {
+        this.preview.querySelectorAll('pre code').forEach((block) => {
+          const lines = block.innerHTML.split('\n');
+          while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop();
+          if (lines.length <= 1) return;
+          block.innerHTML = lines.map((line, i) =>
+            `<span class="code-line"><span class="code-line-num">${i + 1}</span><span class="code-line-text">${line || '&nbsp;'}</span></span>`
+          ).join('\n');
+        });
+      } catch (e) { console.warn('[preview] Code line error:', e); }
 
       // 等待浏览器完成布局后再测量元素位置
       await new Promise(r => requestAnimationFrame(r));

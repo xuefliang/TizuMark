@@ -1169,12 +1169,48 @@ body.is-resizing .side-btn {
   border: 1px solid var(--border-color);
 }
 
-.preview-content pre code {
+.preview-content.code-wrap pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.preview-content pre code.hljs {
   padding: 0;
   background: none;
   border-radius: 0;
   font-size: 0.9em;
-  line-height: 1.5;
+  line-height: 1;
+  display: block;
+}
+
+/* 代码块行号 & 自动换行 */
+.code-line {
+  display: flex;
+  line-height: 1;
+  min-width: 0;
+}
+.code-line-num {
+  flex-shrink: 0;
+  width: 3em;
+  text-align: right;
+  padding-right: 0.8em;
+  color: var(--text-tertiary, #888);
+  user-select: none;
+  display: none;
+}
+.preview-content.code-line-numbers .code-line-num {
+  display: inline;
+}
+.code-line-text {
+  white-space: pre-wrap;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.preview-content:not(.code-wrap) .code-line-text {
+  white-space: pre;
 }
 
 .preview-content blockquote {
