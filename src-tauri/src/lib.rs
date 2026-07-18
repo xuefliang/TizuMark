@@ -231,6 +231,41 @@ fn get_cli_args() -> Vec<String> {
     std::env::args().skip(1).collect()
 }
 
+// 路径安全校验：拒绝写入/创建到系统关键目录或越界路径。
+// 编辑器需读写用户任意选中的文件，故不做全盘 scope 限制，
+// 仅在此拦截危险目标（启动目录、系统目录等持久化/RCE 向量）。
+fn safe_write_target(path: &str) -> Result<std::path::PathBuf, String> {
+    let p = std::path::Path::new(path);
+    let canonical = p
+        .canonicalize()
+        .or_else(|_| {
+            // 目标尚不存在时，基于父目录规范化为绝对路径再判断
+            let parent = p.parent().unwrap_or_else(|| std::path::Path::new("."));
+            let base = parent.canonicalize().map_err(|e| format!("Invalid path {}: {}", path, e))?;
+            let file_name = p.file_name().ok_or_else(|| format!("Invalid path {}", path))?;
+            Ok::<std::path::PathBuf, String>(base.join(file_name))
+        })?;
+
+    let canonical_str = canonical.to_string_lossy().replace('/', "\\").to_lowercase();
+    // 系统关键 / 持久化目录前缀黑名单（Windows）
+    const BLOCKED: &[&str] = &[
+        "\\windows\\",
+        "\\program files\\",
+        "\\program files (x86)\\",
+        "\\system32\\",
+        "\\programdata\\microsoft\\windows\\start menu\\programs\\startup",
+        "\\appdata\\roaming\\microsoft\\windows\\start menu\\programs\\startup",
+        "\\documents and settings\\",
+        "autorun.inf",
+    ];
+    for b in BLOCKED {
+        if canonical_str.contains(b) {
+            return Err(format!("Refusing to write to protected path: {}", path));
+        }
+    }
+    Ok(canonical)
+}
+
 #[tauri::command]
 fn read_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| e.to_string())
@@ -274,6 +309,7 @@ struct DirEntryInfo {
 #[tauri::command]
 fn list_dir(path: String) -> Result<Vec<DirEntryInfo>, String> {
     let p = std::path::Path::new(&path);
+    let _ = safe_write_target(&path).map_err(|e| e)?; // 复用规范化以拒绝越界/关键目录
     let mut entries: Vec<DirEntryInfo> = Vec::new();
     let read = std::fs::read_dir(&p).map_err(|e| e.to_string())?;
     for entry in read {
@@ -323,16 +359,19 @@ fn list_dir(path: String) -> Result<Vec<DirEntryInfo>, String> {
 
 #[tauri::command]
 fn write_file(path: String, content: String) -> Result<(), String> {
+    let _ = safe_write_target(&path)?;
     fs::write(&path, &content).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn write_binary_file(path: String, contents: Vec<u8>) -> Result<(), String> {
+    let _ = safe_write_target(&path)?;
     fs::write(&path, &contents).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn ensure_dir(path: String) -> Result<(), String> {
+    let _ = safe_write_target(&path)?;
     fs::create_dir_all(&path).map_err(|e| e.to_string())
 }
 
@@ -383,6 +422,7 @@ struct ImageAssetInfo {
 fn save_image_to_assets(bytes: Vec<u8>, ext: String, assets_dir: String) -> Result<ImageAssetInfo, String> {
     let hash = format!("{:x}", Md5::digest(&bytes));
     let filename = format!("{}.{}", hash, ext);
+    let _ = safe_write_target(&assets_dir)?;
     let dest = std::path::Path::new(&assets_dir).join(&filename);
 
     std::fs::create_dir_all(&assets_dir).map_err(|e| e.to_string())?;

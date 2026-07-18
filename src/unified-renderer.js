@@ -453,13 +453,13 @@ function sanitizeTagAttributes(tagName, inner) {
         while (j < attrs.length && !/\s/.test(attrs[j])) j++;
       }
       let raw = attrs.substring(nameStart, j);
-      if (attrName.startsWith('on') || /javascript:/i.test(raw)) {
-        continue; // skip dangerous attribute
+      if (attrName.startsWith('on') || /javascript:/i.test(raw) || attrName === 'style') {
+        continue; // skip dangerous attribute (含 style：预览禁用内联样式，避免 CSS 破坏布局/隐藏内容)
       }
       cleaned += raw;
     } else {
       let raw = attrs.substring(nameStart, j);
-      if (attrName.startsWith('on') || /javascript:/i.test(raw)) {
+      if (attrName.startsWith('on') || /javascript:/i.test(raw) || attrName === 'style') {
         continue;
       }
       cleaned += raw;

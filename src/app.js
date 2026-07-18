@@ -104,12 +104,14 @@ const I18N = {
     find: '查找',
     replace: '替换',
     replaceAll: '全部替换',
+    replaceAllDone: '已替换 {n} 处',
     findNext: '下一个',
     findPrev: '上一个',
     caseSensitive: '区分大小写',
     regex: '正则',
     matches: '个结果',
     noMatches: '无结果',
+    tooManyMatches: '结果过多',
     findInPreview: '在预览中查找',
     copyAsHTML: '复制为 HTML',
     closeTab: '关闭',
@@ -127,6 +129,7 @@ const I18N = {
     externalChanged: '文件已在外部被修改',
     externalChangedDirty: '文件已在外部被修改，重新加载将丢失未保存的内容',
     reloadFailed: '重新加载失败',
+    sessionLoadFailed: '会话恢复失败',
     ecbReload: '重新加载',
     ecbIgnore: '忽略',
     ecbReloadAll: '全部重新加载',
@@ -362,6 +365,7 @@ const I18N = {
     externalChanged: 'File changed externally',
     externalChangedDirty: 'File changed externally; reloading will discard unsaved changes',
     reloadFailed: 'Reload failed',
+    sessionLoadFailed: 'Session restore failed',
     ecbReload: 'Reload',
     ecbIgnore: 'Ignore',
     ecbReloadAll: 'Reload All',
@@ -413,12 +417,14 @@ const I18N = {
     find: 'Find',
     replace: 'Replace',
     replaceAll: 'Replace All',
+    replaceAllDone: 'Replaced {n} occurrences',
     findNext: 'Next',
     findPrev: 'Previous',
     caseSensitive: 'Case Sensitive',
     regex: 'Regex',
     matches: ' matches',
     noMatches: 'No matches',
+    tooManyMatches: 'Too many matches',
     findInPreview: 'Find in Preview',
     copyAsHTML: 'Copy as HTML',
     closeTab: 'Close',
@@ -1170,8 +1176,8 @@ class MarkdownEditor {
     // Language selector — keep option text fixed (中文 / English)
   }
 
-  loadSettings() {
-    const defaults = {
+  defaultSettings() {
+    return {
       fontSize: 14,
       tabSize: 2,
       lineWrap: true,
@@ -1198,8 +1204,12 @@ class MarkdownEditor {
       editorFont: '',
       previewFont: '',
     };
+  }
+
+  loadSettings() {
+    const defaults = this.defaultSettings();
     try {
-      const saved = JSON.parse(localStorage.getItem('tizumark-settings'));
+      const saved = this._validConfigObject(JSON.parse(localStorage.getItem('tizumark-settings')));
       // 向后兼容：旧版本没有 fontScheme 时，从配色方案推断
       if (saved && saved.fontScheme === undefined) {
         const colorSchemeFontMap = {
@@ -1211,10 +1221,30 @@ class MarkdownEditor {
         };
         saved.fontScheme = colorSchemeFontMap[saved.colorScheme] || 'system-sans';
       }
-      return { ...defaults, ...saved };
+      // 类型校验：丢弃与默认值类型不符的字段，避免字符串/布尔错位污染 UI 与回写
+      const merged = { ...defaults, ...saved };
+      for (const k of Object.keys(merged)) {
+        if (typeof merged[k] !== typeof defaults[k]) {
+          merged[k] = defaults[k];
+        }
+      }
+      return merged;
     } catch {
       return defaults;
     }
+  }
+
+  // 读取文件并归一化换行符为 \n：处理 CRLF 与单独 CR（混合/老 Mac 换行），避免保存时把单 CR 当作换行制造多余空行
+  async readFileNormalized(path) {
+    const content = await invoke('read_file', { path });
+    return content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  }
+
+  // 校验从 localStorage 读取的配置为纯对象，避免畸形 JSON（数组/字符串/null）污染设置并原样回写
+  _validConfigObject(raw) {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw !== 'object' || Array.isArray(raw)) return null;
+    return raw;
   }
 
   saveSettings() {
@@ -1661,6 +1691,16 @@ class MarkdownEditor {
     return div.innerHTML;
   }
 
+  // 转义双引号 HTML 属性值（img alt、a title 等），防止属性提前闭合
+  escapeAttr(text) {
+    return String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // 转义 Markdown 链接/图片 alt 文本中破坏语法的字符（] 与 \）
+  escapeMdText(text) {
+    return String(text).replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
+  }
+
   applyFontScheme() {
     document.documentElement.setAttribute('data-font-scheme', this.settings.fontScheme || 'system-sans');
     // 更新 mermaid 字体
@@ -1976,31 +2016,7 @@ class MarkdownEditor {
     );
     if (!confirmed) return;
 
-    const defaults = {
-      fontSize: 14,
-      tabSize: 2,
-      lineWrap: true,
-      lineNumbers: true,
-      previewFontSize: 16,
-      lineHeight: 1.7,
-      maxWidth: 0,
-      themeMode: 'light',
-      colorScheme: 'default',
-      fontScheme: 'classic-serif',
-      defaultView: 'preview',
-      scrollSync: true,
-      language: 'zh',
-      imageInsertMode: 'assets',
-      imageAssetPath: 'assets',
-      imageAssetPathMode: 'relative',
-      outlineWidth: 240,
-      codeLineNumbers: false,
-      codeWrap: false,
-      softBreaks: true,
-      customFonts: [],
-      editorFont: '',
-      previewFont: '',
-    };
+    const defaults = this.defaultSettings();
     this.settings = defaults;
     localStorage.removeItem('tizumark-settings');
 
@@ -2090,7 +2106,7 @@ class MarkdownEditor {
   loadShortcuts() {
     const defaults = this.getDefaultShortcuts();
     try {
-      const saved = JSON.parse(localStorage.getItem('tizumark-shortcuts'));
+      const saved = this._validConfigObject(JSON.parse(localStorage.getItem('tizumark-shortcuts')));
       return { ...defaults, ...saved };
     } catch {
       return defaults;
@@ -2472,7 +2488,7 @@ class MarkdownEditor {
     if (!tab) return;
     if (tab._loaded || !tab.filePath) { tab._loaded = true; return; }
     try {
-      const content = (await invoke('read_file', { path: tab.filePath })).replace(/\r\n/g, '\n');
+      const content = await this.readFileNormalized(tab.filePath);
       tab.content = content;
       tab.savedContent = content;
       await this.refreshFileMeta(tab);
@@ -2924,9 +2940,28 @@ class MarkdownEditor {
 
     const isSafeRegex = (q) => {
       if (q.length > 500) return false;
-      // Detect nested quantifiers — the most common ReDoS pattern
+      // 拦截常见灾难性回溯（ReDoS）模式：嵌套量词、相邻量词、重复组等
       if (/[+*?}]\)[\s]*[+*{]|[+*}]\s*[+*{]/.test(q)) return false;
+      if (/(\([^()]*[+*?][^()]*\))\1/.test(q)) return false; // 重复捕获组 (a)(a)
+      if (/[+*?]\s*\((?!\?)/.test(q)) return false;           // 量词后紧跟捕获组 a*(...)
+      if (/\(\?[=!:].*\)\s*[+*?]/.test(q)) return false;       // 先行/后行断言后接量词
+      if (/(.\s*.\s*.\s*.\s*.\s*.\s*.\s*.\s*.\s*.\s*)\*/.test(q)) return false; // 超长字符序列后量词
       return true;
+    };
+
+    // 带步数上限的安全匹配计数：避免灾难性回溯卡死主线程
+    const safeMatchCount = (text, re, limit = 200000) => {
+      if (!re.global) re = new RegExp(re.source, re.flags + 'g');
+      let count = 0, steps = 0;
+      let m;
+      re.lastIndex = 0;
+      while ((m = re.exec(text)) !== null) {
+        count++;
+        steps += m.index + 1;
+        if (steps > limit || count > 100000) return -1; // 超限：疑似 ReDoS
+        if (re.lastIndex === m.index) re.lastIndex++;
+      }
+      return count;
     };
 
     const makeRegex = (q, flags) => {
@@ -2960,14 +2995,15 @@ class MarkdownEditor {
       if (useRegex) {
         if (!isSafeRegex(query)) { findCount.textContent = ''; return; }
         const re = makeRegex(query, caseSensitive ? 'g' : 'gi');
-        if (re) count = (text.match(re) || []).length;
+        if (re) { const c = safeMatchCount(text, re); count = c < 0 ? '∞' : c; }
       } else {
         const lower = caseSensitive ? text : text.toLowerCase();
         const q = caseSensitive ? query : query.toLowerCase();
         let pos = 0;
         while ((pos = lower.indexOf(q, pos)) !== -1) { count++; pos += q.length; }
       }
-      findCount.textContent = count > 0 ? count + this.t('matches') : this.t('noMatches');
+      if (count === '∞') { findCount.textContent = this.t('tooManyMatches') || '∞'; }
+      else findCount.textContent = count > 0 ? count + this.t('matches') : this.t('noMatches');
     };
 
     findInput.addEventListener('input', updateCount);
@@ -3059,26 +3095,20 @@ class MarkdownEditor {
       const useRegex = document.getElementById('find-regex').checked;
 
       if (useRegex && !isSafeRegex(query)) return;
-      const text = this.cm.getValue();
-      const re = useRegex
-        ? new RegExp(query, caseSensitive ? 'g' : 'gi')
-        : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'g' : 'gi');
-      const matches = [];
-      let m;
-      while ((m = re.exec(text)) !== null) {
-        matches.push({ from: m.index, to: m.index + m[0].length });
-        if (re.lastIndex === m.index) re.lastIndex++;
-      }
-      // Apply in reverse so positions stay valid, batched as one undo event
-      if (matches.length > 0) {
-        this.cm.operation(() => {
-          for (let i = matches.length - 1; i >= 0; i--) {
-            const from = this.cm.posFromIndex(matches[i].from);
-            const to = this.cm.posFromIndex(matches[i].to);
-            this.cm.replaceRange(replacement, from, to);
-          }
-        });
-      }
+      // 使用 CodeMirror 的 searchCursor.replace，原生支持 $1/$& 反向引用（正则替换不被退化为文本替换）
+      const search = useRegex ? new RegExp(query, caseSensitive ? 'g' : 'gi') : query;
+      const cursor = this.cm.getSearchCursor(search, { line: 0, ch: 0 }, { caseFold: !caseSensitive });
+      let count = 0;
+      let steps = 0;
+      this.cm.operation(() => {
+        while (cursor.findNext()) {
+          count++;
+          steps++;
+          if (steps > 100000) break; // 防御性上限，避免极端情况卡死
+          cursor.replace(replacement);
+        }
+      });
+      if (count > 0) this.setStatus(this.t('replaceAllDone', { n: count }));
     });
 
     document.getElementById('find-close').addEventListener('click', () => this.closeFindPanel());
@@ -3118,14 +3148,15 @@ class MarkdownEditor {
       if (useRegex) {
         if (!isSafeRegex(query)) { previewFindCount.textContent = ''; return; }
         const re = makeRegex(query, caseSensitive ? 'g' : 'gi');
-        if (re) count = (text.match(re) || []).length;
+        if (re) { const c = safeMatchCount(text, re); count = c < 0 ? '∞' : c; }
       } else {
         const lower = caseSensitive ? text : text.toLowerCase();
         const q = caseSensitive ? query : query.toLowerCase();
         let pos = 0;
         while ((pos = lower.indexOf(q, pos)) !== -1) { count++; pos += q.length; }
       }
-      previewFindCount.textContent = count > 0 ? count + this.t('matches') : this.t('noMatches');
+      if (count === '∞') { previewFindCount.textContent = this.t('tooManyMatches') || '∞'; }
+      else previewFindCount.textContent = count > 0 ? count + this.t('matches') : this.t('noMatches');
     };
 
     const doPreviewFind = (reverse = false) => {
@@ -3349,17 +3380,62 @@ class MarkdownEditor {
           } else if (window.__TAURI__) {
             // 本地相对链接：相对当前文档所在目录解析成绝对路径，
             // 直接读取文件（不要 fetch webview 源，否则会被 SPA 回退返回 index.html）。
-            let targetPath = href;
             const tab = this.activeTab;
             if (tab && tab.filePath) {
-              targetPath = resolveDocPath(tab.filePath, href);
+              const targetPath = resolveDocPath(tab.filePath, this.normalizeLinkHref(href));
+              const existingIndex = this.tabs.findIndex(t => t.filePath === targetPath);
+              if (existingIndex !== -1) {
+                this.switchTab(existingIndex);
+                return;
+              }
+              const content = await this.readFileNormalized(targetPath);
+              const name = targetPath.split(/[/\\]/).pop();
+              this.addTab(name, content, targetPath);
+              this.activeTab.savedContent = content;
+              this.updateTabDisplay();
+              return;
             }
-            const content = await invoke('read_file', { path: targetPath });
-            const name = targetPath.split(/[/\\]/).pop();
-            this.addTab(name, content, targetPath);
-            this.activeTab.savedContent = content;
-            this.updateTabDisplay();
-            return;
+            // 无活动文件（如「使用说明」等打包资源 Tab）：
+            // 1) 绝对路径链接（D:\... / D:/... / /...）直接用 Rust read_file 读取，不要走 fetch/URL；
+            // 2) 相对打包资源（如 demo.md）用 fetch 读取；
+            // 3) 再回退到 Rust 资源目录读取，与打开使用说明保持一致。
+            const normHref = this.normalizeLinkHref(href);
+            if (/^[a-zA-Z]:[\\/]/.test(normHref) || normHref.startsWith('/')) {
+              try {
+                const content = await this.readFileNormalized(normHref);
+                if (content && !content.trim().startsWith('<!DOCTYPE') && !content.trim().startsWith('<html')) {
+                  await this._openBundledFile(href, content, normHref);
+                  return;
+                }
+              } catch (err) {
+                console.error('Failed to open absolute markdown link:', href, err);
+                this.setStatus(`无法打开文件: ${href}`);
+                return;
+              }
+            }
+            try {
+              const resp = await fetch(href);
+              if (resp.ok) {
+                const text = await resp.text();
+                if (!text.trim().startsWith('<!DOCTYPE') && !text.trim().startsWith('<html')) {
+                  await this._openBundledFile(href, text);
+                  return;
+                }
+              }
+            } catch (_) { /* 落到 Rust 资源目录兜底 */ }
+            try {
+              const baseDir = (window.__TAURI__.path && window.__TAURI__.path.resourceDir)
+                ? await window.__TAURI__.path.resourceDir() : '';
+              const p = baseDir ? (baseDir.replace(/[/\\]$/, '') + '/' + normHref) : normHref;
+              const content = await this.readFileNormalized(p);
+              if (content && !content.trim().startsWith('<!DOCTYPE') && !content.trim().startsWith('<html')) {
+                await this._openBundledFile(href, content);
+                return;
+              }
+            } catch (err) {
+              console.error('Failed to open bundled markdown link:', href, err);
+              this.setStatus(`无法打开文件: ${href}`);
+            }
           } else {
             const resp = await fetch(href);
             if (resp.ok) {
@@ -3374,6 +3450,7 @@ class MarkdownEditor {
         } catch (err) {
           console.error('Failed to open markdown link:', href, err);
           this.setStatus(`无法打开文件: ${href}`);
+          return;
         }
       }
 
@@ -3552,7 +3629,7 @@ class MarkdownEditor {
           const paths = event.payload.paths || [];
           for (const filePath of paths) {
             try {
-              const content = await invoke('read_file', { path: filePath });
+              const content = await this.readFileNormalized(filePath);
               const name = filePath.split(/[/\\]/).pop();
               const existingIndex = this.tabs.findIndex(t => t.filePath === filePath);
               if (existingIndex !== -1) {
@@ -3718,12 +3795,13 @@ class MarkdownEditor {
       const text = document.getElementById('insert-link-text').value.trim();
       const url = document.getElementById('insert-link-url').value.trim();
       if (!url) return;
-      const linkText = text || url;
+      const linkText = this.escapeMdText(text || url);
+      const safeUrl = String(url).replace(/\\/g, '\\\\').replace(/\)/g, '\\)');
       const sel = this.cm.getSelection();
       if (sel) {
-        this.cm.replaceSelection(`[${sel}](${url})`);
+        this.cm.replaceSelection(`[${this.escapeMdText(sel)}](${safeUrl})`);
       } else {
-        this.insertAtCursor(`[${linkText}](${url})`, linkText.length + 3);
+        this.insertAtCursor(`[${linkText}](${safeUrl})`, linkText.length + 3);
       }
       this.hideInsertLinkDialog();
       this.cm.focus();
@@ -3864,7 +3942,7 @@ class MarkdownEditor {
         this.showToast(this.t('imageUrlRequired'));
         return;
       }
-      this.insertImageBlock(`![${alt || 'image'}](${url})`);
+      this.insertImageBlock(`![${this.escapeMdText(alt || 'image')}](${url})`);
     }
     this.hideInsertImageDialog();
     this.cm.focus();
@@ -3887,7 +3965,7 @@ class MarkdownEditor {
       const w = info.width || '';
       const h = info.height || '';
       const dimAttr = w ? ` width="${w}" height="${h}"` : '';
-      const imgTag = `<img src="${src}"${dimAttr} alt="${alt || info.filename}">`;
+      const imgTag = `<img src="${src}"${dimAttr} alt="${this.escapeAttr(alt || info.filename)}">`;
       this.insertImageBlock(imgTag);
       this.setStatus(this.t('imagePasted'));
     } catch (err) {
@@ -3932,7 +4010,7 @@ class MarkdownEditor {
       const w = info.width || '';
       const h = info.height || '';
       const dimAttr = w ? ` width="${w}" height="${h}"` : '';
-      this.insertImageBlock(`<img src="${src}"${dimAttr} alt="${alt}">`);
+      this.insertImageBlock(`<img src="${src}"${dimAttr} alt="${this.escapeAttr(alt)}">`);
       this.setStatus(this.t('imagePasted'));
     } else {
       const base64 = await new Promise((resolve, reject) => {
@@ -3976,7 +4054,7 @@ class MarkdownEditor {
           continue;
         }
         try {
-          const content = await invoke('read_file', { path: filePath });
+          const content = await this.readFileNormalized(filePath);
           const name = filePath.split(/[/\\]/).pop();
           this.addTab(name, content, filePath);
           openedCount++;
@@ -4061,12 +4139,16 @@ class MarkdownEditor {
     const active = this.activeTab;
     if (active && active.filePath) {
       try {
-        const content = (await invoke('read_file', { path: active.filePath })).replace(/\r\n/g, '\n');
+        const content = await this.readFileNormalized(active.filePath);
         active.content = content;
         active.savedContent = content;
       } catch (e) {
+        // 读盘失败（文件被删除/移动/无权限）：保留标签页但标记为加载失败，
+        // 不再静默置空 content/savedContent（避免后续保存用空内容覆盖原文件）
         active.content = '';
         active.savedContent = '';
+        active._loadError = true;
+        this.setStatus(`${this.t('sessionLoadFailed')}: ${active.filePath}`);
       }
       active._loaded = true;
     } else if (active) {
@@ -4109,7 +4191,7 @@ class MarkdownEditor {
         this.saveSession();
         return;
       }
-      const content = (await invoke('read_file', { path: filePath })).replace(/\r\n/g, '\n');
+      const content = await this.readFileNormalized(filePath);
       const name = filePath.split(/[/\\]/).pop();
       await this.addTab(name, content, filePath);
       this.viewMode = 'preview';
@@ -4190,6 +4272,7 @@ class MarkdownEditor {
   }
 
   async renderFolderLevel(dirPath, containerEl, depth) {
+    if (depth > 20) return; // 防御：限制目录递归深度，避免深层嵌套/符号链接环导致浏览器卡死
     const CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
     const FOLDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
     const FOLDER_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1H3z"/><path d="M3 10h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
@@ -4486,13 +4569,23 @@ ${clone.innerHTML}
       clone.style.height = 'auto';
       document.body.appendChild(clone);
 
+      // 图片加载策略与实时预览 processImages 保持一致：
+      // data:/http(s):/file:/blob: 直接保留；绝对路径直接读取；相对路径按当前文档目录解析
       const images = clone.querySelectorAll('img');
+      const tabFile = this.activeTab ? this.activeTab.filePath : '';
+      const imgDir = tabFile ? tabFile.replace(/[/\\][^/\\]*$/, '') : '';
       const imagePromises = Array.from(images).map(async (img) => {
         const src = img.getAttribute('src');
-        if (!src || src.startsWith('data:')) return;
+        if (!src || src.startsWith('data:') || src.startsWith('http://') ||
+            src.startsWith('https://') || src.startsWith('file://') || src.startsWith('blob:')) return;
+
+        let url = src;
+        if (!(src.startsWith('/') || /^[a-zA-Z]:[/\\]/.test(src)) && imgDir) {
+          url = imgDir + '/' + src; // 相对路径按文档目录解析
+        }
 
         try {
-          const base64 = await invoke('fetch_image_as_base64', { url: src });
+          const base64 = await invoke('fetch_image_as_base64', { url });
           const ext = src.split('.').pop().split('?')[0].toLowerCase();
           let mime = 'image/png';
           if (ext === 'jpg' || ext === 'jpeg') mime = 'image/jpeg';
@@ -5698,8 +5791,9 @@ input[type="checkbox"]:checked::after { display: none !important; }
           const regex = new RegExp(`(?<![a-zA-Z0-9])${escaped}(?![a-zA-Z0-9])`, 'g');
           if (regex.test(text)) {
             modified = true;
-            const safeDef = def.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            text = text.replace(regex, `<abbr title="${safeDef}">${term}</abbr>`);
+            const safeDef = this.escapeAttr(def);
+            const safeTerm = this.escapeHtml(term);
+            text = text.replace(regex, `<abbr title="${safeDef}">${safeTerm}</abbr>`);
           }
         }
 
@@ -5865,7 +5959,7 @@ input[type="checkbox"]:checked::after { display: none !important; }
   async reloadTabFromDisk(tab) {
     if (!tab || !tab.filePath) return;
     try {
-      const content = await invoke('read_file', { path: tab.filePath });
+      const content = await this.readFileNormalized(tab.filePath);
       tab.content = content;
       tab.savedContent = content;
       await this.refreshFileMeta(tab);
@@ -5993,7 +6087,8 @@ input[type="checkbox"]:checked::after { display: none !important; }
         if (!tab.fileMeta) { tab.fileMeta = meta; continue; }
         if (meta.mtime !== tab.fileMeta.mtime || meta.size !== tab.fileMeta.size) {
           let disk = null;
-          try { disk = await invoke('read_file', { path: tab.filePath }); } catch (e) { disk = null; }
+          try { disk = await this.readFileNormalized(tab.filePath); } catch (e) { disk = null; }
+          // 磁盘内容换行已归一化为 LF，savedContent 同为 LF，统一比较，避免 CRLF/CR 文件每次轮询误报"外部已修改"
           if (disk !== null && disk !== tab.savedContent) this.enqueueExternalChange(tab);
           else tab.fileMeta = meta;
         }
@@ -6203,18 +6298,64 @@ input[type="checkbox"]:checked::after { display: none !important; }
       this.switchTab(existingIndex);
       return;
     }
+    let content = null;
+    // 优先用 fetch 读取打包后的前端资源（开发/多数运行环境）
     try {
       const resp = await fetch(fileName);
-      if (!resp.ok) throw new Error(resp.statusText);
-      const content = await resp.text();
-      this.addTab(tabName, content, null);
-      this.activeTab.savedContent = content;
-      this.activeTab.isGuide = true;
-      this.updateTabDisplay();
-      this.setStatus(isEn ? this.t('openedGuideEn') : this.t('openedGuide'));
-    } catch (error) {
-      this.setStatus(isEn ? this.t('failedGuideEn') : `${this.t('failedGuide')}: ${error}`);
+      if (resp.ok) {
+        const text = await resp.text();
+        // 防止静态服务把未知路径回退成 index.html：内容是 HTML 则视为读取失败，走兜底
+        const looksLikeHtml = text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html');
+        if (!looksLikeHtml) content = text;
+      }
+    } catch (_) { /* 落到下面的兜底读取 */ }
+    // 兜底：通过 Rust 从应用资源目录读取（部分打包/WebView 环境下 fetch 受限）
+    if (content === null) {
+      try {
+        const baseDir = (window.__TAURI__ && window.__TAURI__.path && window.__TAURI__.path.resourceDir)
+          ? await window.__TAURI__.path.resourceDir()
+          : '';
+        const p = baseDir ? (baseDir.replace(/[/\\]$/, '') + '/' + fileName) : fileName;
+        content = await invoke('read_file', { path: p });
+      } catch (e) {
+        this.setStatus(isEn ? this.t('failedGuideEn') : `${this.t('failedGuide')}: ${e}`);
+        return;
+      }
+      // read_file 也可能返回 HTML（某些资源目录解析不符预期），同样排除
+      if (content && (content.trim().startsWith('<!DOCTYPE') || content.trim().startsWith('<html'))) {
+        content = null;
+      }
     }
+    if (content === null) {
+      this.setStatus(isEn ? this.t('failedGuideEn') : this.t('failedGuide'));
+      return;
+    }
+    this.addTab(tabName, content, null);
+    this.activeTab.savedContent = content;
+    this.activeTab.isGuide = true;
+    this.updateTabDisplay();
+    this.setStatus(isEn ? this.t('openedGuideEn') : this.t('openedGuide'));
+  }
+
+  async _openBundledFile(href, content, filePath = null) {
+    const name = filePath ? filePath.split(/[/\\]/).pop() : href.split(/[/\\]/).pop();
+    const existingIndex = filePath ? this.tabs.findIndex(t => t.filePath === filePath) : -1;
+    if (existingIndex !== -1) {
+      this.switchTab(existingIndex);
+      return;
+    }
+    this.addTab(name, content, filePath);
+    this.activeTab.savedContent = content;
+    this.updateTabDisplay();
+  }
+
+  // 还原被渲染器编码的链接 URL（%5C→\、%2F→/ 等），得到可读取的真实文件路径。
+  // 兼容 Windows 盘符路径（D:\ 或 D:/）与 macOS/Linux 绝对路径（/...），
+  // 相对路径原样返回，交由 resolveDocPath 处理。
+  normalizeLinkHref(href) {
+    let p = href;
+    try { p = decodeURIComponent(href); } catch (_) { p = href; }
+    return p;
   }
 
   async showAbout() {
