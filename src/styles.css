@@ -3703,3 +3703,28 @@ body.is-resizing .side-btn {
   p, li { orphans: 3; widows: 3; }
   @page { margin: 1.5cm; }
 }
+
+/* Translation progress dialog */
+.translation-progress-dialog .dialog {
+  max-width: 400px;
+}
+.translation-progress-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.translation-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: translation-spin 0.8s linear infinite;
+}
+@keyframes translation-spin {
+  to { transform: rotate(360deg); }
+}
+.translation-progress-bar {
+  width: 100%;
+}
