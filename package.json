@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
+    "build:docx": "esbuild src/export-docx.js --bundle --global-name=DocxExport --outfile=lib/export-docx-bundle.js --format=iife",
     "postbuild": "node -e \"const{existsSync,copyFileSync}=require('fs');const{version}=require('./package.json');const src='src-tauri/target/release/tizumark.exe';const dst='src-tauri/target/release/TizuMark_'+version+'_x64.exe';existsSync(src)&&(copyFileSync(src,dst),console.log('版本化可执行文件已输出: '+dst))\"",
     "tauri": "tauri",
     "test": "node --test test/*.test.cjs"
@@ -14,6 +15,7 @@
   "license": "GPL-3.0",
   "dependencies": {
     "codemirror": "^5.65.18",
+    "docx": "^9.7.1",
     "highlight.js": "^11.10.0",
     "html2canvas": "^1.4.1",
     "katex": "^0.17.0",
