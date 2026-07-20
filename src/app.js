@@ -4590,9 +4590,8 @@ class MarkdownEditor {
         title: this.activeTab.name || 'Untitled',
         sections: [{ children }],
       });
-      const buffer = await DocxExport.Packer.toBuffer(doc);
-      const arr = Array.from(new Uint8Array(buffer));
-      await invoke('write_binary_file', { path, contents: arr });
+      const base64 = await DocxExport.Packer.toBase64String(doc);
+      await invoke('write_binary_file_base64', { path, contents: base64 });
       this.setStatus(this.t('exportedDocx') + ': ' + path);
     } catch (error) {
       console.error('exportDOCX error:', error);

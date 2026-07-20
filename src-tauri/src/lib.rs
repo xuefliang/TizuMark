@@ -370,6 +370,16 @@ fn write_binary_file(path: String, contents: Vec<u8>) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn write_binary_file_base64(path: String, contents: String) -> Result<(), String> {
+    let _ = safe_write_target(&path)?;
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&contents)
+        .map_err(|e| e.to_string())?;
+    fs::write(&path, &bytes).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn ensure_dir(path: String) -> Result<(), String> {
     let _ = safe_write_target(&path)?;
     fs::create_dir_all(&path).map_err(|e| e.to_string())
@@ -1334,6 +1344,7 @@ pub fn run() {
             file_meta,
             list_dir,
             write_binary_file,
+            write_binary_file_base64,
             ensure_dir,
             watch_folder,
             stop_watch,
