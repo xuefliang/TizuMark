@@ -380,23 +380,45 @@ fn write_binary_file_base64(path: String, contents: String) -> Result<(), String
 }
 
 #[tauri::command]
-fn validate_zip(path: String) -> Result<String, String> {
+fn validate_docx(path: String) -> Result<String, String> {
     let bytes = fs::read(&path).map_err(|e| e.to_string())?;
     if bytes.len() < 4 {
-        return Err("File too small to be a ZIP".into());
+        return Err("文件太小，无法是有效的 ZIP/DOCX".into());
     }
     if bytes[0..4] != [0x50, 0x4B, 0x03, 0x04] {
-        return Err("Not a valid ZIP file (missing PK\\x03\\x04 header)".into());
+        return Err(format!("不是有效的 ZIP 文件：缺少 PK\\x03\\x04 头 (前4字节: {:02X} {:02X} {:02X} {:02X})", bytes[0], bytes[1], bytes[2], bytes[3]));
     }
-    let has_content_types = bytes.windows(b"[Content_Types].xml".len())
-        .any(|w| w == b"[Content_Types].xml");
-    let mut info = format!("Valid ZIP: {} bytes", bytes.len());
-    if has_content_types {
-        info.push_str(", contains [Content_Types].xml");
+
+    // Parse ZIP local file headers to list contained files
+    let mut file_names: Vec<String> = Vec::new();
+    let mut pos = 0;
+    while pos + 30 <= bytes.len() {
+        if bytes[pos..pos+4] != [0x50, 0x4B, 0x03, 0x04] { break; }
+        let fname_len = u16::from_le_bytes([bytes[pos+26], bytes[pos+27]]) as usize;
+        let extra_len = u16::from_le_bytes([bytes[pos+28], bytes[pos+29]]) as usize;
+        if pos + 30 + fname_len > bytes.len() { break; }
+        if let Ok(name) = std::str::from_utf8(&bytes[pos+30..pos+30+fname_len]) {
+            file_names.push(name.to_string());
+        }
+        pos += 30 + fname_len + extra_len;
+    }
+
+    let mut issues: Vec<String> = Vec::new();
+    if !file_names.iter().any(|n| n == "[Content_Types].xml") { issues.push("缺少 [Content_Types].xml".into()); }
+    if !file_names.iter().any(|n| n == "word/document.xml") { issues.push("缺少 word/document.xml".into()); }
+    if !file_names.iter().any(|n| n == "word/styles.xml") { issues.push("缺少 word/styles.xml".into()); }
+
+    let info = format!("ZIP 有效: {} bytes, {} 个文件: {}",
+        bytes.len(),
+        file_names.len(),
+        file_names.join(", ")
+    );
+
+    if issues.is_empty() {
+        Ok(info)
     } else {
-        info.push_str(", MISSING [Content_Types].xml");
+        Err(format!("{} | 结构问题: {}", info, issues.join(", ")))
     }
-    Ok(info)
 }
 
 #[tauri::command]
@@ -1365,7 +1387,7 @@ pub fn run() {
             list_dir,
             write_binary_file,
             write_binary_file_base64,
-            validate_zip,
+            validate_docx,
             ensure_dir,
             watch_folder,
             stop_watch,

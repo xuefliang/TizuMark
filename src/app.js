@@ -4596,11 +4596,12 @@ class MarkdownEditor {
       const base64 = btoa(binary);
       await invoke('write_binary_file_base64', { path, contents: base64 });
       try {
-        const info = await invoke('validate_zip', { path });
+        const info = await invoke('validate_docx', { path });
         console.log('DOCX validation:', info);
       } catch (validationError) {
         console.error('DOCX validation failed:', validationError);
-        this.setStatus(this.t('exportFailed') + ': DOCX文件损坏 - ' + validationError);
+        alert('DOCX 文件结构损坏，Word 无法打开:\n' + validationError);
+        this.setStatus(this.t('exportFailed') + ': ' + validationError);
         return;
       }
       this.setStatus(this.t('exportedDocx') + ': ' + path);
