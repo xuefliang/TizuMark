@@ -396,11 +396,12 @@ fn validate_docx(path: String) -> Result<String, String> {
         if bytes[pos..pos+4] != [0x50, 0x4B, 0x03, 0x04] { break; }
         let fname_len = u16::from_le_bytes([bytes[pos+26], bytes[pos+27]]) as usize;
         let extra_len = u16::from_le_bytes([bytes[pos+28], bytes[pos+29]]) as usize;
+        let comp_size = u32::from_le_bytes([bytes[pos+18], bytes[pos+19], bytes[pos+20], bytes[pos+21]]) as usize;
         if pos + 30 + fname_len > bytes.len() { break; }
         if let Ok(name) = std::str::from_utf8(&bytes[pos+30..pos+30+fname_len]) {
             file_names.push(name.to_string());
         }
-        pos += 30 + fname_len + extra_len;
+        pos += 30 + fname_len + extra_len + comp_size;
     }
 
     let mut issues: Vec<String> = Vec::new();
