@@ -341,6 +341,32 @@ const I18N = {
     files: '文件',
     closeFolder: '关闭文件夹',
     folderOpened: '已打开文件夹: {path}',
+    tools: '工具',
+    translate: '翻译',
+    translateFull: '翻译全文...',
+    translation: '翻译',
+    translationApiUrl: 'API 地址',
+    translationApiKey: 'API Key',
+    translationModel: '模型',
+    translationTargetLang: '目标语言',
+    translationTemperature: '温度',
+    translationLangChinese: '中文',
+    translationLangEnglish: 'English',
+    translationLangJapanese: '日本語',
+    translationLangAuto: '自动检测',
+    translationInProgress: '正在翻译...',
+    translationComplete: '翻译完成',
+    translationFailed: '翻译失败',
+    translationNoContent: '没有可翻译的内容',
+    translationNoKey: '请先在设置中配置 API Key',
+    translationResultIncomplete: '翻译结果可能不完整',
+    translationNetworkError: '网络错误，请检查 API 地址和网络连接',
+    translationError401: 'API Key 无效，请检查设置',
+    translationError429: '请求过于频繁，请稍后重试',
+    translationErrorUnknown: '翻译服务出错 ({code})',
+    translationConfigHint: '配置 OpenAI 兼容 API 后可翻译当前文档',
+    translationProgressPct: '翻译中 {pct}%',
+    translationChunkSuffix: ' ({n}/{total})',
     sidebar: '侧边栏',
   },
   en: {
@@ -648,6 +674,32 @@ const I18N = {
     files: 'Files',
     closeFolder: 'Close Folder',
     folderOpened: 'Opened folder: {path}',
+    tools: 'Tools',
+    translate: 'Translate',
+    translateFull: 'Translate Full Text...',
+    translation: 'Translation',
+    translationApiUrl: 'API URL',
+    translationApiKey: 'API Key',
+    translationModel: 'Model',
+    translationTargetLang: 'Target Language',
+    translationTemperature: 'Temperature',
+    translationLangChinese: '中文',
+    translationLangEnglish: 'English',
+    translationLangJapanese: '日本語',
+    translationLangAuto: 'Auto Detect',
+    translationInProgress: 'Translating...',
+    translationComplete: 'Translation complete',
+    translationFailed: 'Translation failed',
+    translationNoContent: 'No content to translate',
+    translationNoKey: 'Please configure an API Key in settings first',
+    translationResultIncomplete: 'Translation result may be incomplete',
+    translationNetworkError: 'Network error. Check API URL and connection',
+    translationError401: 'Invalid API Key. Check settings',
+    translationError429: 'Rate limited. Please try again later',
+    translationErrorUnknown: 'Translation service error ({code})',
+    translationConfigHint: 'Configure an OpenAI-compatible API to translate the current document',
+    translationProgressPct: 'Translating {pct}%',
+    translationChunkSuffix: ' ({n}/{total})',
     sidebar: 'Sidebar',
   }
 };
@@ -1203,6 +1255,11 @@ class MarkdownEditor {
       toolbarCollapsed: false,
       sidebarHidden: false,
       customFonts: [],
+      translationApiUrl: 'https://api.openai.com/v1/chat/completions',
+      translationApiKey: '',
+      translationModel: 'gpt-4o-mini',
+      translationTargetLang: '中文',
+      translationTemperature: 0.3,
       editorFont: '',
       previewFont: '',
     };
@@ -1281,6 +1338,12 @@ class MarkdownEditor {
     document.getElementById('set-code-line-numbers').checked = s.codeLineNumbers;
     document.getElementById('set-code-wrap').checked = s.codeWrap;
     document.getElementById('set-language').value = s.language || 'zh';
+    document.getElementById('set-translation-api-url').value = s.translationApiUrl || 'https://api.openai.com/v1/chat/completions';
+    document.getElementById('set-translation-api-key').value = s.translationApiKey || '';
+    document.getElementById('set-translation-model').value = s.translationModel || 'gpt-4o-mini';
+    document.getElementById('set-translation-target-lang').value = s.translationTargetLang || '中文';
+    document.getElementById('set-translation-temperature').value = s.translationTemperature != null ? s.translationTemperature : 0.3;
+    document.getElementById('translation-temperature-label').textContent = s.translationTemperature != null ? String(s.translationTemperature) : '0.3';
     const modeRadio = document.querySelector(`#settings-image-store-mode input[value="${s.imageInsertMode || 'assets'}"]`);
     if (modeRadio) modeRadio.checked = true;
 
@@ -1357,6 +1420,30 @@ class MarkdownEditor {
     });
     document.getElementById('set-scroll-sync').addEventListener('change', (e) => {
       this.settings.scrollSync = e.target.checked;
+      this.saveSettings();
+    });
+    document.getElementById('set-translation-api-url').addEventListener('change', (e) => {
+      this.settings.translationApiUrl = e.target.value;
+      this.saveSettings();
+    });
+    document.getElementById('set-translation-api-key').addEventListener('change', (e) => {
+      this.settings.translationApiKey = e.target.value;
+      this.saveSettings();
+    });
+    document.getElementById('set-translation-model').addEventListener('change', (e) => {
+      this.settings.translationModel = e.target.value;
+      this.saveSettings();
+    });
+    document.getElementById('set-translation-target-lang').addEventListener('change', (e) => {
+      this.settings.translationTargetLang = e.target.value;
+      this.saveSettings();
+    });
+    document.getElementById('set-translation-temperature').addEventListener('input', (e) => {
+      const v = Number(e.target.value).toFixed(1);
+      document.getElementById('translation-temperature-label').textContent = v;
+    });
+    document.getElementById('set-translation-temperature').addEventListener('change', (e) => {
+      this.settings.translationTemperature = Number(e.target.value);
       this.saveSettings();
     });
     document.getElementById('set-soft-breaks').checked = s.softBreaks !== false;
@@ -2045,6 +2132,12 @@ class MarkdownEditor {
     if (defaultPathRadio) defaultPathRadio.checked = true;
     this.updateImageAssetPathHint();
 
+    document.getElementById('set-translation-api-url').value = defaults.translationApiUrl || 'https://api.openai.com/v1/chat/completions';
+    document.getElementById('set-translation-api-key').value = defaults.translationApiKey || '';
+    document.getElementById('set-translation-model').value = defaults.translationModel || 'gpt-4o-mini';
+    document.getElementById('set-translation-target-lang').value = defaults.translationTargetLang || '中文';
+    document.getElementById('set-translation-temperature').value = defaults.translationTemperature != null ? defaults.translationTemperature : 0.3;
+    document.getElementById('translation-temperature-label').textContent = defaults.translationTemperature != null ? String(defaults.translationTemperature) : '0.3';
     await this.applySettings();
     this.renderCustomFontSettings();
     this.setStatus(this.t('settingsReset'));
@@ -4640,6 +4733,104 @@ ${clone.innerHTML}
       if (clone && clone.parentNode) {
         clone.parentNode.removeChild(clone);
       }
+    }
+  }
+
+  async translateDocument() {
+    if (!this.settings.translationApiKey) {
+      this.showToast(this.t('translationNoKey'), 'danger');
+      this.showSettings();
+      return;
+    }
+
+    const tab = this.tabs[this.activeTabIndex];
+    if (!tab || !tab.content) {
+      this.showToast(this.t('translationNoContent'), 'danger');
+      return;
+    }
+
+    const progressDialog = document.getElementById('translation-progress-dialog');
+    const progressText = document.getElementById('translation-progress-text');
+    const progressFill = document.getElementById('translation-progress-fill');
+    progressDialog.classList.remove('hidden');
+
+    try {
+      const content = tab.content;
+      const maxChars = 4000;
+      const chunks = [];
+      let targetLang = this.settings.translationTargetLang;
+
+      if (targetLang === '自动检测') {
+        targetLang = this.settings.language === 'en' ? 'English' : '中文';
+      }
+
+      if (content.length <= maxChars) {
+        chunks.push(content);
+      } else {
+        const parts = content.split(/\n(?=#{1,6}\s)/);
+        let current = '';
+        for (const part of parts) {
+          if ((current + '\n' + part).length > maxChars && current.length > 0) {
+            chunks.push(current);
+            current = part;
+          } else {
+            current = current ? current + '\n' + part : part;
+          }
+        }
+        if (current) chunks.push(current);
+      }
+
+      const results = [];
+
+      for (let i = 0; i < chunks.length; i++) {
+        const pct = Math.round(((i + 1) / chunks.length) * 100);
+        progressFill.style.width = pct + '%';
+        if (chunks.length > 1) {
+          progressText.textContent = this.t('translationProgressPct', { pct }) + this.t('translationChunkSuffix', { n: i + 1, total: chunks.length });
+        } else {
+          progressText.textContent = this.t('translationInProgress');
+        }
+
+        const systemMsg = chunks.length > 1 && i > 0
+          ? `继续翻译，保持上下文一致。目标语言：${targetLang}。保留所有 Markdown 格式。只返回翻译结果。`
+          : `你是一个翻译助手。将以下 Markdown 内容翻译为 ${targetLang}。保留所有 Markdown 格式标记、代码块、数学公式等。只返回翻译结果。如果检测到原文已经是 ${targetLang}，返回原文。`;
+
+        const response = await fetch(this.settings.translationApiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + this.settings.translationApiKey,
+          },
+          body: JSON.stringify({
+            model: this.settings.translationModel,
+            messages: [
+              { role: 'system', content: systemMsg },
+              { role: 'user', content: chunks[i] },
+            ],
+            temperature: this.settings.translationTemperature,
+          }),
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) throw new Error(this.t('translationError401'));
+          if (response.status === 429) throw new Error(this.t('translationError429'));
+          throw new Error(this.t('translationErrorUnknown', { code: response.status }));
+        }
+
+        const data = await response.json();
+        const translated = data.choices?.[0]?.message?.content || '';
+        results.push(translated);
+      }
+
+      progressDialog.classList.add('hidden');
+
+      const translatedContent = results.join('\n\n');
+      const newName = tab.name + ' - ' + targetLang;
+      await this.addTab(newName, translatedContent, null);
+      this.showToast(this.t('translationComplete'), 'success');
+    } catch (err) {
+      progressDialog.classList.add('hidden');
+      this.showToast(err.message || this.t('translationFailed'), 'danger');
     }
   }
 
