@@ -871,6 +871,7 @@ class MarkdownEditor {
     updateToolbarBtn('btn-file', t('file'));
     updateToolbarBtn('btn-view', t('view'));
     updateToolbarBtn('btn-help', t('help'));
+    updateToolbarBtn('btn-tools', t('tools'));
 
     // File menu items
     // Use direct approach for menu items
@@ -892,6 +893,7 @@ class MarkdownEditor {
     updateMenuText('btn-settings', t('settings'));
     updateMenuText('btn-user-guide', t('userGuide'));
     updateMenuText('btn-about', t('about'));
+    updateMenuText('btn-translate-full', t('translateFull'));
 
     // View mode tabs
     updateMenuText('btn-view-preview', t('preview'));
@@ -983,6 +985,26 @@ class MarkdownEditor {
       fsSelect.options[0].text = t('fontSchemeSystemSans');
       fsSelect.options[1].text = t('fontSchemeClassicSerif');
     }
+
+    // Translation settings
+    const th = document.getElementById('settings-translation-title');
+    if (th) th.textContent = t('translation');
+    const hintEl = document.querySelector('#setting-translation-hint .hint-text');
+    if (hintEl) hintEl.textContent = t('translationConfigHint');
+    setRowLabel('set-translation-api-url', t('translationApiUrl'));
+    setRowLabel('set-translation-api-key', t('translationApiKey'));
+    setRowLabel('set-translation-model', t('translationModel'));
+    setRowLabel('set-translation-target-lang', t('translationTargetLang'));
+    const langSelect = document.getElementById('set-translation-target-lang');
+    if (langSelect) {
+      langSelect.options[0].text = t('translationLangAuto');
+      langSelect.options[1].text = t('translationLangChinese');
+      langSelect.options[2].text = t('translationLangEnglish');
+      langSelect.options[3].text = t('translationLangJapanese');
+    }
+    setRowLabel('set-translation-temperature', t('translationTemperature'));
+    setText('translation-progress-title', t('translationInProgress'));
+    setText('translation-progress-text', t('translationInProgress'));
 
     // Update tab bar
     this.updateTabBar();
@@ -2758,6 +2780,7 @@ class MarkdownEditor {
       { btn: 'btn-file', menu: 'file-menu' },
       { btn: 'btn-view', menu: 'view-menu' },
       { btn: 'btn-help', menu: 'help-menu' },
+      { btn: 'btn-tools', menu: 'tools-menu' },
     ];
 
     let toolbarHideTimer = null;
@@ -2870,6 +2893,10 @@ class MarkdownEditor {
     document.getElementById('btn-check-update').addEventListener('click', () => {
       document.getElementById('help-menu').classList.add('hidden');
       this.checkUpdate(true);
+    });
+    document.getElementById('btn-translate-full').addEventListener('click', () => {
+      document.getElementById('tools-menu').classList.add('hidden');
+      this.translateDocument();
     });
     document.getElementById('btn-add-tab').addEventListener('click', () => this.newFile());
     document.querySelector('.tab-bar-wrapper').addEventListener('dblclick', (e) => {
