@@ -4590,8 +4590,19 @@ class MarkdownEditor {
         title: this.activeTab.name || 'Untitled',
         sections: [{ children }],
       });
-      const base64 = await DocxExport.Packer.toBase64String(doc);
+      const buffer = await DocxExport.Packer.toArrayBuffer(doc);
+      const bytes = new Uint8Array(buffer);
+      const binary = Array.from(bytes, b => String.fromCharCode(b)).join('');
+      const base64 = btoa(binary);
       await invoke('write_binary_file_base64', { path, contents: base64 });
+      try {
+        const info = await invoke('validate_zip', { path });
+        console.log('DOCX validation:', info);
+      } catch (validationError) {
+        console.error('DOCX validation failed:', validationError);
+        this.setStatus(this.t('exportFailed') + ': DOCX文件损坏 - ' + validationError);
+        return;
+      }
       this.setStatus(this.t('exportedDocx') + ': ' + path);
     } catch (error) {
       console.error('exportDOCX error:', error);

@@ -82,7 +82,12 @@ function walkNodes(nodes, result, listLevel) {
       case 'img': {
         const src = node.getAttribute('src') || '';
         if (src.startsWith('data:')) {
-          const base64Data = src.split(',')[1];
+          const parts = src.split(',');
+          const header = parts[0];
+          const base64Data = parts[1];
+          let imgType = 'png';
+          const mimeMatch = header.match(/^data:image\/(\w+)/);
+          if (mimeMatch) imgType = mimeMatch[1] === 'jpeg' ? 'jpg' : mimeMatch[1];
           const imgEl = node;
           const naturalW = imgEl.naturalWidth || imgEl.width || 400;
           const naturalH = imgEl.naturalHeight || imgEl.height || 300;
@@ -91,7 +96,7 @@ function walkNodes(nodes, result, listLevel) {
           let h = naturalW > 0 ? Math.round((w / naturalW) * naturalH) : naturalH;
           result.push(new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new ImageRun({ data: base64Data, transformation: { width: w, height: h } })]
+            children: [new ImageRun({ data: base64Data, type: imgType, transformation: { width: w, height: h } })]
           }));
         }
         break;

@@ -380,6 +380,26 @@ fn write_binary_file_base64(path: String, contents: String) -> Result<(), String
 }
 
 #[tauri::command]
+fn validate_zip(path: String) -> Result<String, String> {
+    let bytes = fs::read(&path).map_err(|e| e.to_string())?;
+    if bytes.len() < 4 {
+        return Err("File too small to be a ZIP".into());
+    }
+    if bytes[0..4] != [0x50, 0x4B, 0x03, 0x04] {
+        return Err("Not a valid ZIP file (missing PK\\x03\\x04 header)".into());
+    }
+    let has_content_types = bytes.windows(b"[Content_Types].xml".len())
+        .any(|w| w == b"[Content_Types].xml");
+    let mut info = format!("Valid ZIP: {} bytes", bytes.len());
+    if has_content_types {
+        info.push_str(", contains [Content_Types].xml");
+    } else {
+        info.push_str(", MISSING [Content_Types].xml");
+    }
+    Ok(info)
+}
+
+#[tauri::command]
 fn ensure_dir(path: String) -> Result<(), String> {
     let _ = safe_write_target(&path)?;
     fs::create_dir_all(&path).map_err(|e| e.to_string())
@@ -1345,6 +1365,7 @@ pub fn run() {
             list_dir,
             write_binary_file,
             write_binary_file_base64,
+            validate_zip,
             ensure_dir,
             watch_folder,
             stop_watch,
