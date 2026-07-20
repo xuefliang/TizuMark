@@ -875,7 +875,6 @@ class MarkdownEditor {
     updateToolbarBtn('btn-file', t('file'));
     updateToolbarBtn('btn-view', t('view'));
     updateToolbarBtn('btn-help', t('help'));
-    updateToolbarBtn('btn-tools', t('tools'));
 
     // File menu items
     // Use direct approach for menu items
@@ -898,8 +897,6 @@ class MarkdownEditor {
     updateMenuText('btn-settings', t('settings'));
     updateMenuText('btn-user-guide', t('userGuide'));
     updateMenuText('btn-about', t('about'));
-    updateMenuText('btn-translate-full', t('translateFull'));
-
     // View mode tabs
     updateMenuText('btn-view-preview', t('preview'));
     updateMenuText('btn-view-edit', t('edit'));
@@ -2785,7 +2782,6 @@ class MarkdownEditor {
       { btn: 'btn-file', menu: 'file-menu' },
       { btn: 'btn-view', menu: 'view-menu' },
       { btn: 'btn-help', menu: 'help-menu' },
-      { btn: 'btn-tools', menu: 'tools-menu' },
     ];
 
     let toolbarHideTimer = null;
@@ -2903,8 +2899,8 @@ class MarkdownEditor {
       document.getElementById('help-menu').classList.add('hidden');
       this.checkUpdate(true);
     });
-    document.getElementById('btn-translate-full').addEventListener('click', () => {
-      document.getElementById('tools-menu').classList.add('hidden');
+    document.getElementById('fmt-translate').addEventListener('click', (e) => {
+      e.stopPropagation();
       this.translateDocument();
     });
     document.getElementById('btn-add-tab').addEventListener('click', () => this.newFile());
@@ -4599,6 +4595,7 @@ class MarkdownEditor {
       await invoke('write_binary_file', { path, contents: arr });
       this.setStatus(this.t('exportedDocx') + ': ' + path);
     } catch (error) {
+      console.error('exportDOCX error:', error);
       this.setStatus(this.t('exportFailed') + ': ' + error);
     }
   }
