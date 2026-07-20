@@ -2882,6 +2882,10 @@ class MarkdownEditor {
       document.getElementById('file-menu').classList.add('hidden');
       this.exportPDF();
     });
+    document.getElementById('btn-export-docx').addEventListener('click', () => {
+      document.getElementById('file-menu').classList.add('hidden');
+      this.exportDOCX();
+    });
     document.getElementById('btn-settings').addEventListener('click', () => {
       document.getElementById('file-menu').classList.add('hidden');
       this.showSettings();
@@ -4538,6 +4542,64 @@ class MarkdownEditor {
       this.saveSession();
     } catch (error) {
       this.setStatus(`${this.t('saveFailed')}: ${error}`);
+    }
+  }
+
+  async exportDOCX() {
+    try {
+      const path = await dialogSave({
+        defaultPath: this.activeTab.name
+          ? this.activeTab.name.replace(/\.[^.]+$/, '') + '.docx'
+          : 'export.docx',
+        filters: [{ name: 'Word Document', extensions: ['docx'] }]
+      });
+      if (!path) return;
+
+      const clone = this.preview.cloneNode(true);
+      clone.style.position = '';
+      clone.style.left = '';
+      clone.style.top = '';
+      clone.style.width = '';
+      clone.style.padding = '';
+      clone.style.overflow = '';
+      clone.style.height = '';
+
+      clone.querySelectorAll('.copy-btn').forEach(el => el.remove());
+      const abbrData = clone.querySelector('#abbr-data');
+      if (abbrData) abbrData.remove();
+
+      const filePath = this.activeTab.filePath;
+      if (filePath) {
+        const dir = filePath.replace(/[/\\][^/\\]*$/, '');
+        const imgPromises = Array.from(clone.querySelectorAll('img')).map(async (img) => {
+          let src = img.getAttribute('src');
+          if (!src || src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://') || src.startsWith('file://') || src.startsWith('blob:')) return;
+          if (src.startsWith('/')) src = src.slice(1);
+          try {
+            const base64 = await invoke('fetch_image_as_base64', { url: dir + '/' + src });
+            const ext = src.split('.').pop().toLowerCase();
+            let mime = 'image/png';
+            if (ext === 'jpg' || ext === 'jpeg') mime = 'image/jpeg';
+            else if (ext === 'gif') mime = 'image/gif';
+            else if (ext === 'svg') mime = 'image/svg+xml';
+            else if (ext === 'webp') mime = 'image/webp';
+            img.src = 'data:' + mime + ';base64,' + base64;
+          } catch (e) { /* skip */ }
+        });
+        await Promise.allSettled(imgPromises);
+      }
+
+      const children = DocxExport.domToDocx(clone);
+      const doc = new DocxExport.Document({
+        title: this.activeTab.name || 'Untitled',
+        sections: [{ children }],
+      });
+      const buffer = await DocxExport.Packer.toBuffer(doc);
+      const arr = Array.from(new Uint8Array(buffer));
+      await invoke('write_binary_file', { path, contents: arr });
+      this.setStatus(this.t('exportedDocx') + ': ' + path);
+    } catch (error) {
+      this.setStatus(this.t('exportFailed') + ': ' + error);
     }
   }
 
