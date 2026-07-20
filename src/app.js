@@ -46,6 +46,8 @@ const I18N = {
     exportHTML: '导出 HTML',
     exportImg: '导出长图',
     exportPDF: '导出 PDF',
+    exportDOCX: '导出 DOCX',
+    exportedDocx: '已导出 DOCX',
     shortcuts: '快捷键设置',
     settings: '设置',
     insert: '插入',
@@ -378,6 +380,8 @@ const I18N = {
     exportHTML: 'Export HTML',
     exportImg: 'Export Image',
     exportPDF: 'Export PDF',
+    exportDOCX: 'Export DOCX',
+    exportedDocx: 'DOCX exported',
     shortcuts: 'Shortcuts',
     settings: 'Settings',
     insert: 'Insert',
@@ -889,6 +893,7 @@ class MarkdownEditor {
     updateMenuText('btn-export-html', t('exportHTML'));
     updateMenuText('btn-export-img', t('exportImg'));
     updateMenuText('btn-export-pdf', t('exportPDF'));
+    updateMenuText('btn-export-docx', t('exportDOCX'));
     updateMenuText('btn-shortcuts', t('shortcuts'));
     updateMenuText('btn-settings', t('settings'));
     updateMenuText('btn-user-guide', t('userGuide'));
