@@ -220,6 +220,11 @@ fn sanitize_tag_attributes(tag_content: &str) -> String {
 }
 
 #[tauri::command]
+fn exit_app(app_handle: tauri::AppHandle) {
+    app_handle.exit(0);
+}
+
+#[tauri::command]
 fn open_devtools(app_handle: tauri::AppHandle) {
     if let Some(window) = app_handle.get_webview_window("main") {
         let _ = window.open_devtools();
@@ -1380,6 +1385,7 @@ pub fn run() {
         })
         .manage(WatcherState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
+            exit_app,
             open_devtools,
             get_cli_args,
             read_file,

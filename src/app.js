@@ -4590,10 +4590,7 @@ class MarkdownEditor {
         title: this.activeTab.name || 'Untitled',
         sections: [{ children }],
       });
-      const buffer = await DocxExport.Packer.toArrayBuffer(doc);
-      const bytes = new Uint8Array(buffer);
-      const binary = Array.from(bytes, b => String.fromCharCode(b)).join('');
-      const base64 = btoa(binary);
+      const base64 = await DocxExport.Packer.toBase64String(doc);
       await invoke('write_binary_file_base64', { path, contents: base64 });
       try {
         const info = await invoke('validate_docx', { path });
@@ -4607,6 +4604,7 @@ class MarkdownEditor {
       this.setStatus(this.t('exportedDocx') + ': ' + path);
     } catch (error) {
       console.error('exportDOCX error:', error);
+      alert('导出 DOCX 失败:\n' + error);
       this.setStatus(this.t('exportFailed') + ': ' + error);
     }
   }
@@ -7315,51 +7313,17 @@ input[type="checkbox"]:checked::after { display: none !important; }
 
   async handleAppClose() {
     try {
-      const { getCurrentWindow } = window.__TAURI__.window;
-      const modified = this.tabs.filter(t => t.isModified);
-      if (modified.length === 0) {
-        this.saveSession();
-        await getCurrentWindow().hide();
-        return;
-      }
-      const result = await this.showSaveDialog(
-        this.t('saveChanges'),
-        this.t('filesModifiedConfirm', { n: modified.length }),
-        this.t('saveAll'), this.t('discardAll'), this.t('cancel')
-      );
-      if (result === 'cancel') return;
-      if (result === 'save') {
-        const ok = await this.batchSaveTabs(modified);
-        if (!ok) return;
-      } else {
-        for (const tab of modified) {
-          tab.content = tab.savedContent;
-        }
-        const remaining = this.tabs.filter(t => t.filePath || t.content !== '');
-        if (remaining.length === 0) {
-          this.tabs.length = 0;
-          this.tabs.push(new Tab(`${this.t('untitled')}${this.untitledCounter++}`));
-          this.activeTabIndex = 0;
-        } else {
-          this.tabs = remaining;
-          if (this.activeTabIndex >= this.tabs.length) {
-            this.activeTabIndex = this.tabs.length - 1;
-          }
-        }
-        this.cm.setValue(this.activeTab.content);
-        this.updateTabBar();
-        this.updatePreview();
+      const { invoke } = window.__TAURI__.core;
+      const modified = this.tabs.filter(t => t.isModified && t.filePath);
+      for (const tab of modified) {
+        tab.savedContent = tab.content;
+        await invoke('write_file', { path: tab.filePath, content: tab.content });
+        await this.refreshFileMeta(tab);
       }
       this.saveSession();
-      await getCurrentWindow().hide();
+      await invoke('exit_app');
     } catch (error) {
       console.error('handleAppClose error:', error);
-      try {
-        if (window.__TAURI__) {
-          const { getCurrentWindow } = window.__TAURI__.window;
-          await getCurrentWindow().hide();
-        }
-      } catch { /* 浏览器环境下降级 */ }
     }
   }
 
