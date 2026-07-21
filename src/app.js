@@ -4590,8 +4590,9 @@ class MarkdownEditor {
         title: this.activeTab.name || 'Untitled',
         sections: [{ children }],
       });
-      const base64 = await DocxExport.Packer.toBase64String(doc);
-      await invoke('write_binary_file_base64', { path, contents: base64 });
+      const buffer = await DocxExport.Packer.toArrayBuffer(doc);
+      const arr = Array.from(new Uint8Array(buffer));
+      await invoke('write_binary_file', { path, contents: arr });
       try {
         const info = await invoke('validate_docx', { path });
         console.log('DOCX validation:', info);
