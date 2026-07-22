@@ -4585,7 +4585,60 @@ class MarkdownEditor {
         await Promise.allSettled(imgPromises);
       }
 
-      const doc = DocxExport.buildDocument(clone, this.activeTab.name || 'Untitled');
+      // Render Mermaid diagrams to PNG so they are inserted as images in DOCX.
+      const mermaidContainers = clone.querySelectorAll('.mermaid-container');
+      if (typeof mermaid !== 'undefined' && mermaidContainers.length) {
+        const ff = getComputedStyle(document.documentElement).getPropertyValue('--font-preview').trim() || '-apple-system, sans-serif';
+        mermaid.initialize({ startOnLoad: false, theme: this.isDark ? 'dark' : 'default', securityLevel: 'loose', fontFamily: ff, themeVariables: { fontSize: '14px' } });
+        for (let i = 0; i < mermaidContainers.length; i++) {
+          const container = mermaidContainers[i];
+          const code = (container.getAttribute('data-code') || container.textContent || '').trim();
+          if (!code) continue;
+          try {
+            const result = await mermaid.render('docx-mermaid-' + i, code);
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = result.svg;
+            const svgEl = wrapper.querySelector('svg');
+            let width = 400, height = 300;
+            if (svgEl) {
+              const vb = svgEl.getAttribute('viewBox');
+              if (vb) {
+                const parts = vb.split(/\s+/).map(Number);
+                if (parts.length >= 4 && parts[2] > 0 && parts[3] > 0) {
+                  width = parts[2];
+                  height = parts[3];
+                }
+              }
+            }
+            const svgBlob = new Blob([result.svg], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+            const pngDataUrl = await new Promise((resolve, reject) => {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(width));
+                canvas.height = Math.max(1, Math.round(height));
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                URL.revokeObjectURL(url);
+                resolve(canvas.toDataURL('image/png'));
+              };
+              img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+              img.src = url;
+            });
+            const img = document.createElement('img');
+            img.src = pngDataUrl;
+            img.alt = 'Mermaid diagram';
+            img.width = width;
+            img.height = height;
+            container.replaceWith(img);
+          } catch (e) {
+            console.error('Mermaid DOCX render error for diagram', i, ':', e);
+          }
+        }
+      }
+
+      const doc = await DocxExport.buildDocument(clone, this.activeTab.name || 'Untitled');
       const buffer = await DocxExport.Packer.toArrayBuffer(doc);
       const arr = Array.from(new Uint8Array(buffer));
       await invoke('write_binary_file', { path, contents: arr });

@@ -1,10 +1,104 @@
-const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, AlignmentType, ShadingType, LevelFormat, ExternalHyperlink } = require('docx');
+const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, AlignmentType, ShadingType, LevelFormat, ExternalHyperlink, ImportedXmlComponent } = require('docx');
 
 const ORDERED_LIST_REF = 'ordered-list';
 
-function domToDocx(containerEl) {
+let mml2omml;
+// Prefer the vendored CommonJS build to avoid Node's ESM-in-require warning.
+try {
+  ({ mml2omml } = require('./lib/vendor/mathml2omml.cjs'));
+} catch (e) {
+  try {
+    ({ mml2omml } = require('mathml2omml'));
+  } catch (e2) {
+    mml2omml = null;
+  }
+}
+
+function getKatexSource(node) {
+  const annotation = node.querySelector('.katex-mathml annotation[encoding="application/x-tex"]');
+  if (annotation && annotation.textContent) return annotation.textContent.trim();
+  const data = node.getAttribute('data-latex');
+  if (data) return data.trim();
+  return '';
+}
+
+function latexToOMML(latex, displayMode = false) {
+  if (!mml2omml || typeof katex === 'undefined') throw new Error('math converter not available');
+  const mathml = katex.renderToString(latex, { output: 'mathml', displayMode, throwOnError: false });
+  return mml2omml(mathml);
+}
+
+async function katexNodeToPngDataUrl(node) {
+  if (typeof html2canvas === 'undefined') throw new Error('html2canvas not available');
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'fixed';
+  wrapper.style.left = '-9999px';
+  wrapper.style.top = '0';
+  wrapper.style.background = '#ffffff';
+  wrapper.style.padding = '8px';
+  wrapper.appendChild(node.cloneNode(true));
+  document.body.appendChild(wrapper);
+  try {
+    const canvas = await html2canvas(wrapper, { scale: 2, backgroundColor: '#ffffff', logging: false });
+    return canvas.toDataURL('image/png');
+  } finally {
+    wrapper.remove();
+  }
+}
+
+function isDisplayKatex(node) {
+  const cls = node.className || '';
+  return cls.includes('katex-display') || node.closest('.math-display') !== null;
+}
+
+function toBase64(str) {
+  if (typeof Buffer !== 'undefined') return Buffer.from(str).toString('base64');
+  return btoa(str);
+}
+
+function fromBase64(b64) {
+  if (typeof Buffer !== 'undefined') return Buffer.from(b64, 'base64').toString('utf8');
+  return atob(b64);
+}
+
+async function preprocessMath(containerEl) {
+  const katexNodes = Array.from(containerEl.querySelectorAll('.katex'));
+  for (const node of katexNodes) {
+    try {
+      const latex = getKatexSource(node);
+      if (!latex) throw new Error('no latex source');
+      const displayMode = isDisplayKatex(node);
+      const omml = latexToOMML(latex, displayMode);
+      const placeholder = document.createElement(displayMode ? 'div' : 'span');
+      placeholder.className = displayMode ? 'docx-math-display' : 'docx-math-inline';
+      placeholder.setAttribute('data-omml', toBase64(omml));
+      node.parentNode.replaceChild(placeholder, node);
+    } catch (e) {
+      console.warn('[docx] formula OMML failed, falling back to image:', e);
+      try {
+        const dataUrl = await katexNodeToPngDataUrl(node);
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.alt = getKatexSource(node) || 'formula';
+        node.parentNode.replaceChild(img, node);
+      } catch (imgErr) {
+        console.warn('[docx] formula image fallback failed:', imgErr);
+        const text = getKatexSource(node);
+        if (text) {
+          const span = document.createElement('span');
+          span.textContent = ' ' + text + ' ';
+          node.parentNode.replaceChild(span, node);
+        } else {
+          node.remove();
+        }
+      }
+    }
+  }
+}
+
+async function domToDocx(containerEl) {
   const children = [];
-  walkNodes(containerEl.childNodes, children, 0);
+  await walkNodes(containerEl.childNodes, children, 0);
   return children;
 }
 
@@ -21,8 +115,9 @@ function buildNumberingConfig() {
   };
 }
 
-function buildDocument(containerEl, title) {
-  const children = domToDocx(containerEl);
+async function buildDocument(containerEl, title) {
+  await preprocessMath(containerEl);
+  const children = await domToDocx(containerEl);
   return new Document({
     title: title || 'Untitled',
     numbering: buildNumberingConfig(),
@@ -30,7 +125,7 @@ function buildDocument(containerEl, title) {
   });
 }
 
-function walkNodes(nodes, result, listLevel) {
+async function walkNodes(nodes, result, listLevel) {
   for (const node of nodes) {
     if (node.nodeType === Node.TEXT_NODE) {
       const text = node.textContent.trim();
@@ -42,8 +137,21 @@ function walkNodes(nodes, result, listLevel) {
     if (node.nodeType !== Node.ELEMENT_NODE) continue;
 
     const tag = node.tagName.toLowerCase();
+    const cls = node.className || '';
+
+    if (cls.includes('docx-math-display')) {
+      try {
+        const omml = fromBase64(node.getAttribute('data-omml') || '');
+        const mathComponent = ImportedXmlComponent.fromXmlString(omml);
+        result.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [mathComponent] }));
+      } catch (e) {
+        console.warn('[docx] display math placeholder failed:', e);
+      }
+      continue;
+    }
+
     const opts = { children: [] };
-    collectTextRuns(node, opts.children);
+    await collectTextRuns(node, opts.children);
 
     switch (tag) {
       case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6': {
@@ -69,37 +177,37 @@ function walkNodes(nodes, result, listLevel) {
         break;
       case 'ul': {
         const items = node.querySelectorAll(':scope > li');
-        items.forEach(li => {
+        for (const li of items) {
           const runs = [];
-          collectTextRuns(li, runs);
+          await collectTextRuns(li, runs);
           result.push(new Paragraph({ bullet: { level: listLevel }, children: runs.length ? runs : [new TextRun(li.textContent.trim())] }));
           const nested = li.querySelector('ul, ol');
-          if (nested) walkNodes([nested], result, listLevel + 1);
-        });
+          if (nested) await walkNodes([nested], result, listLevel + 1);
+        }
         break;
       }
       case 'ol': {
         const items = node.querySelectorAll(':scope > li');
-        items.forEach((li) => {
+        for (const li of items) {
           const runs = [];
-          collectTextRuns(li, runs);
+          await collectTextRuns(li, runs);
           result.push(new Paragraph({ numbering: { reference: ORDERED_LIST_REF, level: listLevel }, children: runs.length ? runs : [new TextRun(li.textContent.trim())] }));
           const nested = li.querySelector('ul, ol');
-          if (nested) walkNodes([nested], result, listLevel + 1);
-        });
+          if (nested) await walkNodes([nested], result, listLevel + 1);
+        }
         break;
       }
       case 'table': {
         const rows = [];
-        node.querySelectorAll(':scope > thead > tr, :scope > tbody > tr, :scope > tr').forEach(trEl => {
+        for (const trEl of node.querySelectorAll(':scope > thead > tr, :scope > tbody > tr, :scope > tr')) {
           const cells = [];
-          trEl.querySelectorAll(':scope > th, :scope > td').forEach(tdEl => {
+          for (const tdEl of trEl.querySelectorAll(':scope > th, :scope > td')) {
             const cellRuns = [];
-            collectTextRuns(tdEl, cellRuns);
+            await collectTextRuns(tdEl, cellRuns);
             cells.push(new TableCell({ children: [new Paragraph({ children: cellRuns.length ? cellRuns : [new TextRun(tdEl.textContent.trim())] })] }));
-          });
+          }
           rows.push(new TableRow({ children: cells }));
-        });
+        }
         if (rows.length) result.push(new Table({ rows }));
         break;
       }
@@ -126,7 +234,6 @@ function walkNodes(nodes, result, listLevel) {
         break;
       }
       case 'div': {
-        const cls = node.className || '';
         if (cls.includes('alert')) {
           const firstChild = node.querySelector('.alert-title, :scope > :first-child');
           const titleText = firstChild ? firstChild.textContent.trim() : '';
@@ -141,7 +248,7 @@ function walkNodes(nodes, result, listLevel) {
           result.push(new Paragraph({ indent: { left: 360 }, shading: { type: ShadingType.CLEAR, fill: fillColor }, spacing: { before: 200, after: 200 }, children: [new TextRun(text)] }));
           break;
         }
-        walkNodes(node.childNodes, result, listLevel);
+        await walkNodes(node.childNodes, result, listLevel);
         break;
       }
       default:
@@ -151,15 +258,31 @@ function walkNodes(nodes, result, listLevel) {
   }
 }
 
-function collectTextRuns(el, runs) {
-  el.childNodes.forEach(child => {
+async function collectTextRuns(el, runs) {
+  for (const child of el.childNodes) {
     if (child.nodeType === Node.TEXT_NODE) {
       const text = child.textContent;
       if (text) runs.push(new TextRun(text));
     } else if (child.nodeType === Node.ELEMENT_NODE) {
       const t = child.tagName.toLowerCase();
+      const childCls = child.className || '';
+
+      if (childCls.includes('docx-math-inline')) {
+        try {
+          const omml = fromBase64(child.getAttribute('data-omml') || '');
+          runs.push(ImportedXmlComponent.fromXmlString(omml));
+        } catch (e) {
+          console.warn('[docx] inline math placeholder failed:', e);
+        }
+        continue;
+      }
+
+      if (childCls.includes('docx-math-display')) {
+        continue;
+      }
+
       const text = child.textContent || '';
-      if (!text) return;
+      if (!text) continue;
       switch (t) {
         case 'strong': case 'b':
           runs.push(new TextRun({ text, bold: true })); break;
@@ -188,7 +311,7 @@ function collectTextRuns(el, runs) {
           runs.push(new TextRun(text)); break;
       }
     }
-  });
+  }
 }
 
-module.exports = { domToDocx, buildDocument, buildNumberingConfig, Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, AlignmentType, ExternalHyperlink, LevelFormat };
+module.exports = { domToDocx, buildDocument, buildNumberingConfig, Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, AlignmentType, ExternalHyperlink, LevelFormat, ImportedXmlComponent };

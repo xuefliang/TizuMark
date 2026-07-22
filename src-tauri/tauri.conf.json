@@ -18,6 +18,7 @@
         "center": true,
         "decorations": false,
         "devtools": true,
+        "maximized": true,
         "backgroundColor": "#f5f5f5"
       }
     ],

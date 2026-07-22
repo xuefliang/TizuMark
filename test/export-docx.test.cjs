@@ -1,4 +1,4 @@
-// DOCX 导出单元测试：验证有序列表 numbering 合法、超链接生成等
+// DOCX 导出单元测试：验证有序列表 numbering 合法、超链接生成、公式与图片等
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { JSDOM } = require('jsdom');
@@ -9,11 +9,12 @@ function makeDom(html) {
   const dom = new JSDOM(`<!DOCTYPE html><html><body><div id="preview">${html}</div></body></html>`);
   global.Node = dom.window.Node;
   global.Element = dom.window.Element;
+  global.document = dom.window.document;
   return dom.window.document.getElementById('preview');
 }
 
 async function getDocumentXml(container, title = 'Test') {
-  const doc = buildDocument(container, title);
+  const doc = await buildDocument(container, title);
   const buffer = await Packer.toBuffer(doc);
   const zip = await JSZip.loadAsync(buffer);
   return zip.file('word/document.xml').async('string');
@@ -57,4 +58,28 @@ test('无序列表与有序列表共存时 numbering 均合法', async () => {
   `);
   const xml = await getDocumentXml(container);
   assert.doesNotMatch(xml, /w:numId w:val="\{[^"]+\}"/, '不应包含非法 numbering 占位符');
+});
+
+test('行内公式占位符生成 Office Math OMML', async () => {
+  const omml = '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:r><m:t>x</m:t></m:r></m:oMath>';
+  const b64 = Buffer.from(omml).toString('base64');
+  const container = makeDom(`<p>共 <span class="docx-math-inline" data-omml="${b64}"></span> 个</p>`);
+  const xml = await getDocumentXml(container);
+  assert.match(xml, /<m:oMath[^>]*>/, '应生成 m:oMath 标签');
+});
+
+test('块级公式占位符居中并生成 OMML', async () => {
+  const omml = '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:r><m:t>E=mc²</m:t></m:r></m:oMath>';
+  const b64 = Buffer.from(omml).toString('base64');
+  const container = makeDom(`<div class="docx-math-display" data-omml="${b64}"></div>`);
+  const xml = await getDocumentXml(container);
+  assert.match(xml, /<m:oMath[^>]*>/, '应生成 m:oMath 标签');
+  assert.match(xml, /<w:jc w:val="center"/, '块级公式应居中');
+});
+
+test('data URL 图片生成 ImageRun', async () => {
+  const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const container = makeDom(`<img src="data:image/png;base64,${pngBase64}" width="100" height="50">`);
+  const xml = await getDocumentXml(container);
+  assert.match(xml, /<w:drawing[^>]*>/, '应生成 w:drawing 标签');
 });
