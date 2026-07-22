@@ -4542,6 +4542,7 @@ class MarkdownEditor {
   }
 
   async exportDOCX() {
+    console.log('[docx] exportDOCX started');
     try {
       const path = await dialogSave({
         defaultPath: this.activeTab.name
@@ -4549,7 +4550,11 @@ class MarkdownEditor {
           : 'export.docx',
         filters: [{ name: 'Word Document', extensions: ['docx'] }]
       });
-      if (!path) return;
+      if (!path) {
+        console.log('[docx] export cancelled (no path)');
+        return;
+      }
+      console.log('[docx] save path:', path);
 
       const clone = this.preview.cloneNode(true);
       clone.style.position = '';
@@ -4587,6 +4592,7 @@ class MarkdownEditor {
 
       // Render Mermaid diagrams to PNG so they are inserted as images in DOCX.
       const mermaidContainers = clone.querySelectorAll('.mermaid-container');
+      console.log('[docx] mermaid containers:', mermaidContainers.length);
       if (typeof mermaid !== 'undefined' && mermaidContainers.length) {
         const ff = getComputedStyle(document.documentElement).getPropertyValue('--font-preview').trim() || '-apple-system, sans-serif';
         mermaid.initialize({ startOnLoad: false, theme: this.isDark ? 'dark' : 'default', securityLevel: 'loose', fontFamily: ff, themeVariables: { fontSize: '14px' } });
@@ -4595,7 +4601,12 @@ class MarkdownEditor {
           const code = (container.getAttribute('data-code') || container.textContent || '').trim();
           if (!code) continue;
           try {
-            const result = await mermaid.render('docx-mermaid-' + i, code);
+            console.log('[docx] rendering mermaid diagram', i);
+            const result = await Promise.race([
+              mermaid.render('docx-mermaid-' + i, code),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('mermaid render timeout')), 15000))
+            ]);
+            console.log('[docx] mermaid diagram', i, 'rendered');
             const wrapper = document.createElement('div');
             wrapper.innerHTML = result.svg;
             const svgEl = wrapper.querySelector('svg');
@@ -4638,10 +4649,14 @@ class MarkdownEditor {
         }
       }
 
+      console.log('[docx] building document...');
       const doc = await DocxExport.buildDocument(clone, this.activeTab.name || 'Untitled');
+      console.log('[docx] document built');
       const buffer = await DocxExport.Packer.toArrayBuffer(doc);
       const arr = Array.from(new Uint8Array(buffer));
+      console.log('[docx] writing file, size:', arr.length);
       await invoke('write_binary_file', { path, contents: arr });
+      console.log('[docx] file written');
       try {
         const info = await invoke('validate_docx', { path });
         console.log('DOCX validation:', info);

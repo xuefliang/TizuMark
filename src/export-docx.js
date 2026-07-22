@@ -28,6 +28,13 @@ function latexToOMML(latex, displayMode = false) {
   return mml2omml(mathml);
 }
 
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(label + ' timed out after ' + ms + 'ms')), ms))
+  ]);
+}
+
 async function katexNodeToPngDataUrl(node) {
   if (typeof html2canvas === 'undefined') throw new Error('html2canvas not available');
   const wrapper = document.createElement('div');
@@ -36,11 +43,16 @@ async function katexNodeToPngDataUrl(node) {
   wrapper.style.top = '0';
   wrapper.style.background = '#ffffff';
   wrapper.style.padding = '8px';
-  wrapper.appendChild(node.cloneNode(true));
+  const cloned = node.cloneNode(true);
+  wrapper.appendChild(cloned);
   document.body.appendChild(wrapper);
   try {
-    const canvas = await html2canvas(wrapper, { scale: 2, backgroundColor: '#ffffff', logging: false });
-    return canvas.toDataURL('image/png');
+    const canvas = await withTimeout(
+      html2canvas(wrapper, { scale: 2, backgroundColor: '#ffffff', logging: false }),
+      10000,
+      'html2canvas formula render'
+    );
+    return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
   } finally {
     wrapper.remove();
   }
@@ -48,7 +60,10 @@ async function katexNodeToPngDataUrl(node) {
 
 function isDisplayKatex(node) {
   const cls = node.className || '';
-  return cls.includes('katex-display') || node.closest('.math-display') !== null;
+  if (cls.includes('katex-display')) return true;
+  const parent = node.parentElement;
+  if (parent && (parent.className || '').includes('katex-display')) return true;
+  return node.closest('.math-display') !== null;
 }
 
 function toBase64(str) {
@@ -76,10 +91,12 @@ async function preprocessMath(containerEl) {
     } catch (e) {
       console.warn('[docx] formula OMML failed, falling back to image:', e);
       try {
-        const dataUrl = await katexNodeToPngDataUrl(node);
+        const { dataUrl, width, height } = await katexNodeToPngDataUrl(node);
         const img = document.createElement('img');
         img.src = dataUrl;
         img.alt = getKatexSource(node) || 'formula';
+        img.width = Math.max(20, Math.round(width / 2));
+        img.height = Math.max(20, Math.round(height / 2));
         node.parentNode.replaceChild(img, node);
       } catch (imgErr) {
         console.warn('[docx] formula image fallback failed:', imgErr);
