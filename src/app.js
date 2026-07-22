@@ -4585,11 +4585,7 @@ class MarkdownEditor {
         await Promise.allSettled(imgPromises);
       }
 
-      const children = DocxExport.domToDocx(clone);
-      const doc = new DocxExport.Document({
-        title: this.activeTab.name || 'Untitled',
-        sections: [{ children }],
-      });
+      const doc = DocxExport.buildDocument(clone, this.activeTab.name || 'Untitled');
       const buffer = await DocxExport.Packer.toArrayBuffer(doc);
       const arr = Array.from(new Uint8Array(buffer));
       await invoke('write_binary_file', { path, contents: arr });

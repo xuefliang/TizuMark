@@ -1,9 +1,33 @@
-const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, AlignmentType, ShadingType } = require('docx');
+const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, AlignmentType, ShadingType, LevelFormat, ExternalHyperlink } = require('docx');
+
+const ORDERED_LIST_REF = 'ordered-list';
 
 function domToDocx(containerEl) {
   const children = [];
   walkNodes(containerEl.childNodes, children, 0);
   return children;
+}
+
+function buildNumberingConfig() {
+  return {
+    config: [{
+      reference: ORDERED_LIST_REF,
+      levels: [
+        { level: 0, format: LevelFormat.DECIMAL, text: '%1.', alignment: 'start' },
+        { level: 1, format: LevelFormat.DECIMAL, text: '%1.%2.', alignment: 'start' },
+        { level: 2, format: LevelFormat.DECIMAL, text: '%1.%2.%3.', alignment: 'start' },
+      ],
+    }],
+  };
+}
+
+function buildDocument(containerEl, title) {
+  const children = domToDocx(containerEl);
+  return new Document({
+    title: title || 'Untitled',
+    numbering: buildNumberingConfig(),
+    sections: [{ children }],
+  });
 }
 
 function walkNodes(nodes, result, listLevel) {
@@ -59,7 +83,7 @@ function walkNodes(nodes, result, listLevel) {
         items.forEach((li) => {
           const runs = [];
           collectTextRuns(li, runs);
-          result.push(new Paragraph({ numbering: { reference: 1, level: listLevel }, children: runs.length ? runs : [new TextRun(li.textContent.trim())] }));
+          result.push(new Paragraph({ numbering: { reference: ORDERED_LIST_REF, level: listLevel }, children: runs.length ? runs : [new TextRun(li.textContent.trim())] }));
           const nested = li.querySelector('ul, ol');
           if (nested) walkNodes([nested], result, listLevel + 1);
         });
@@ -143,8 +167,15 @@ function collectTextRuns(el, runs) {
           runs.push(new TextRun({ text, italics: true })); break;
         case 'code':
           runs.push(new TextRun({ text, font: 'Consolas' })); break;
-        case 'a':
-          runs.push(new TextRun({ text, hyperlink: { url: child.getAttribute('href') || '' } })); break;
+        case 'a': {
+          const href = child.getAttribute('href') || '';
+          if (href) {
+            runs.push(new ExternalHyperlink({ children: [new TextRun(text)], link: href }));
+          } else {
+            runs.push(new TextRun(text));
+          }
+          break;
+        }
         case 'br':
           runs.push(new TextRun({ break: 1 })); break;
         case 'del':
@@ -160,4 +191,4 @@ function collectTextRuns(el, runs) {
   });
 }
 
-module.exports = { domToDocx, Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, AlignmentType };
+module.exports = { domToDocx, buildDocument, buildNumberingConfig, Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, AlignmentType, ExternalHyperlink, LevelFormat };

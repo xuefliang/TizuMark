@@ -20869,11 +20869,32 @@ var DocxExport = (() => {
   // src/export-docx.js
   var require_export_docx = __commonJS({
     "src/export-docx.js"(exports, module) {
-      var { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, AlignmentType, ShadingType } = require_dist();
+      var { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, AlignmentType, ShadingType, LevelFormat, ExternalHyperlink } = require_dist();
+      var ORDERED_LIST_REF = "ordered-list";
       function domToDocx(containerEl) {
         const children = [];
         walkNodes(containerEl.childNodes, children, 0);
         return children;
+      }
+      function buildNumberingConfig() {
+        return {
+          config: [{
+            reference: ORDERED_LIST_REF,
+            levels: [
+              { level: 0, format: LevelFormat.DECIMAL, text: "%1.", alignment: "start" },
+              { level: 1, format: LevelFormat.DECIMAL, text: "%1.%2.", alignment: "start" },
+              { level: 2, format: LevelFormat.DECIMAL, text: "%1.%2.%3.", alignment: "start" }
+            ]
+          }]
+        };
+      }
+      function buildDocument(containerEl, title) {
+        const children = domToDocx(containerEl);
+        return new Document({
+          title: title || "Untitled",
+          numbering: buildNumberingConfig(),
+          sections: [{ children }]
+        });
       }
       function walkNodes(nodes, result, listLevel) {
         for (const node of nodes) {
@@ -20931,7 +20952,7 @@ var DocxExport = (() => {
               items.forEach((li) => {
                 const runs = [];
                 collectTextRuns(li, runs);
-                result.push(new Paragraph({ numbering: { reference: 1, level: listLevel }, children: runs.length ? runs : [new TextRun(li.textContent.trim())] }));
+                result.push(new Paragraph({ numbering: { reference: ORDERED_LIST_REF, level: listLevel }, children: runs.length ? runs : [new TextRun(li.textContent.trim())] }));
                 const nested = li.querySelector("ul, ol");
                 if (nested) walkNodes([nested], result, listLevel + 1);
               });
@@ -20954,7 +20975,12 @@ var DocxExport = (() => {
             case "img": {
               const src = node.getAttribute("src") || "";
               if (src.startsWith("data:")) {
-                const base64Data = src.split(",")[1];
+                const parts = src.split(",");
+                const header = parts[0];
+                const base64Data = parts[1];
+                let imgType = "png";
+                const mimeMatch = header.match(/^data:image\/(\w+)/);
+                if (mimeMatch) imgType = mimeMatch[1] === "jpeg" ? "jpg" : mimeMatch[1];
                 const imgEl = node;
                 const naturalW = imgEl.naturalWidth || imgEl.width || 400;
                 const naturalH = imgEl.naturalHeight || imgEl.height || 300;
@@ -20963,7 +20989,7 @@ var DocxExport = (() => {
                 let h = naturalW > 0 ? Math.round(w / naturalW * naturalH) : naturalH;
                 result.push(new Paragraph({
                   alignment: AlignmentType.CENTER,
-                  children: [new ImageRun({ data: base64Data, transformation: { width: w, height: h } })]
+                  children: [new ImageRun({ data: base64Data, type: imgType, transformation: { width: w, height: h } })]
                 }));
               }
               break;
@@ -21014,9 +21040,15 @@ var DocxExport = (() => {
               case "code":
                 runs.push(new TextRun({ text, font: "Consolas" }));
                 break;
-              case "a":
-                runs.push(new TextRun({ text, hyperlink: { url: child.getAttribute("href") || "" } }));
+              case "a": {
+                const href = child.getAttribute("href") || "";
+                if (href) {
+                  runs.push(new ExternalHyperlink({ children: [new TextRun(text)], link: href }));
+                } else {
+                  runs.push(new TextRun(text));
+                }
                 break;
+              }
               case "br":
                 runs.push(new TextRun({ break: 1 }));
                 break;
@@ -21036,7 +21068,7 @@ var DocxExport = (() => {
           }
         });
       }
-      module.exports = { domToDocx, Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, AlignmentType };
+      module.exports = { domToDocx, buildDocument, buildNumberingConfig, Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, AlignmentType, ExternalHyperlink, LevelFormat };
     }
   });
   return require_export_docx();
